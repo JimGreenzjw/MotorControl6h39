@@ -36,21 +36,22 @@ namespace MotorControl6h39
             cbBit.SelectedIndex = 0; // None
             btdisc.Enabled = false;
             P.Close();
+
             // set your pane
             myPane = zedGraphControl1.GraphPane;
             // set a title
-            myPane.Title.Text = "Điều khiển động cơ";
+            myPane.Title.Text = "电机控制";
             // set X and Y axis titles
             myPane.XAxis.Title.Text = "time";
             myPane.YAxis.Title.Text = "Speed(rpm)";
             zedGraphControl1.AxisChange();
             timer1.Interval = 10;
 
-            // Khởi động timer về vị trí ban đầu 
-            tickStart = Environment.TickCount;
-            //enable button
-            btsendcontrol.Enabled = false;
-            txtsetposition.Enabled = false;
+            // 确保在窗体加载时调整图表大小
+            this.BeginInvoke(new Action(() => {
+                MotorControl_Resize(this, EventArgs.Empty);
+            }));
+
         }
         private void timer1_Tick(object sender, EventArgs e)
         {
@@ -277,29 +278,7 @@ namespace MotorControl6h39
         //Take the control string send to STM32F4. Plot the graph
         public void COMhandler(string data)
         {
-            try
-            {
-                double fbspeed, fbposition;
-                bool checkfbspeed, checkfbposition;
-                checkfbspeed = Double.TryParse(data.Substring(0, 7), out fbspeed);
-                checkfbposition = Double.TryParse(data.Substring(7, 5), out fbposition);
-                if (checkfbspeed)
-                {
-                    //Hien thi len sptext. Dong thoi ve do thi
-                    txtsp.Text = Convert.ToString(fbspeed);
-                   
-                }
-                if (checkfbposition )
-                {
-                    //Hien thi len sptext. Dong thoi ve do thi
-                    txtpo.Text = Convert.ToString(fbposition);
-                }
-                
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
+
         }
         public void draw(double ypoint) 
         {
@@ -347,26 +326,7 @@ namespace MotorControl6h39
 
         private void txtsetposition_TextChanged(object sender, EventArgs e)
         {
-            try
-            {
-                POS = Convert.ToDouble(txtsetposition.Text);
-                if (POS >= 0 && SP <= 360)
-                {
-                    POS = Math.Round(POS, 3);
-                    pocheck = true;
-                }
-                else
-                {
-                    pocheck = false;
-                }
-            }
-            catch (Exception exception)
-            {
-                pocheck = false;
-                Console.WriteLine(exception);
-                //throw;
 
-            }
         }
 
         private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
@@ -401,6 +361,8 @@ namespace MotorControl6h39
         }
         private void MotorControl_Resize(object sender, EventArgs e)
         {
+            if (!this.IsHandleCreated || this.IsDisposed) return;
+
             // First adjust tabControl1 size to fill the form
             if (tabControl1 != null)
             {
@@ -411,7 +373,27 @@ namespace MotorControl6h39
                 );
             }
 
+            // Then adjust zedGraphControl1 size
+            if (zedGraphControl1 != null && maintab != null)
+            {
+                const int leftControlWidth = 400;   // 左侧控件宽度
+                const int leftMargin = 10;          // 左侧边距
+                const int bottomMargin = 200;       // 底部边距
+                const int topMargin = 34;           // 顶部边距
 
+                // 设置位置和大小
+                zedGraphControl1.Location = new Point(
+                    leftControlWidth + leftMargin,
+                    topMargin
+                );
+
+                // 计算大小以避免遮挡
+                int width = Math.Max(100, maintab.Width - leftControlWidth - (leftMargin * 2) - 10);
+                int height = Math.Max(100, maintab.Height - bottomMargin - topMargin);
+                
+                zedGraphControl1.Size = new Size(width, height);
+                zedGraphControl1.Invalidate();
+            }
         }
     }
 }
