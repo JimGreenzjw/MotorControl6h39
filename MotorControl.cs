@@ -8,6 +8,7 @@ using ZedGraph;
 using System.Collections.Generic;
 using System.Threading;
 using System.Text;
+using System.IO;
 namespace MotorControl6h39
 {
     public partial class MotorControl : Form
@@ -39,6 +40,49 @@ namespace MotorControl6h39
         private LineItem myCurveMotor;
         private LineItem myCurveError;
         private bool legendClickRegistered = false;
+        
+        // 添加二维数组来存储目标位置和电机位置数据
+        private List<float[]> positionData = new List<float[]>();  // 使用List来动态存储数据
+        private readonly object dataLock = new object();  // 用于线程安全的数据访问
+        private bool isRecordingData = false;  // 控制数据记录开始的标志
+        
+        // 添加清空数据的方法
+        private void ClearPositionData()
+        {
+            lock (dataLock)
+            {
+                positionData.Clear();
+            }
+            Console.WriteLine("位置数据已清空");
+        }
+        
+        // 获取当前数据数量的方法
+        private int GetPositionDataCount()
+        {
+            lock (dataLock)
+            {
+                return positionData.Count;
+            }
+        }
+        
+        // 获取位置数据为二维数组的方法
+        public float[,] GetPositionDataArray()
+        {
+            lock (dataLock)
+            {
+                if (positionData.Count == 0)
+                    return new float[0, 3];
+                
+                float[,] array = new float[positionData.Count, 3];
+                for (int i = 0; i < positionData.Count; i++)
+                {
+                    array[i, 0] = positionData[i][0]; // 目标位置
+                    array[i, 1] = positionData[i][1]; // 电机位置
+                    array[i, 2] = positionData[i][2]; // 当前时间
+                }
+                return array;
+            }
+        }
         
         // 确保Legend设置一致性的方法
         private void EnsureLegendConsistency()
@@ -544,6 +588,16 @@ namespace MotorControl6h39
                 listPointsMotor.Add(time, motorPos);
                 listPointsError.Add(time, positionError);
                 
+                // 只有在开始记录后才将数据存储到二维数组中（线程安全）
+                if (isRecordingData)
+                {
+                    lock (dataLock)
+                    {
+                        // 计算当前时间（秒）
+                        double currentTime = (Environment.TickCount - tickStart) / 1000.0;
+                        positionData.Add(new float[] { goalPos, motorPos, (float)currentTime });
+                    }
+                }
                 
                 // 如果数据点超过显示范围，移除旧的数据点
                 while (listPointsGoal.Count > 0 && listPointsGoal[0].X < time - 10)
@@ -972,18 +1026,98 @@ namespace MotorControl6h39
         {
 
         }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                // 线程安全地获取数据
+                List<float[]> currentData;
+                lock (dataLock)
+                {
+                    currentData = new List<float[]>(positionData);
+                }
+                
+                if (currentData.Count == 0)
+                {
+                    return; // 没有数据，直接返回
+                }
+                
+                // 创建保存文件对话框
+                SaveFileDialog saveDialog = new SaveFileDialog();
+                saveDialog.Filter = "CSV文件 (*.csv)|*.csv|文本文件 (*.txt)|*.txt";
+                saveDialog.Title = "保存位置数据";
+                saveDialog.FileName = $"位置数据_{DateTime.Now:yyyyMMdd_HHmmss}";
+                
+                if (saveDialog.ShowDialog() == DialogResult.OK)
+                {
+                    try
+                    {
+                        using (StreamWriter writer = new StreamWriter(saveDialog.FileName))
+                        {
+                            // 写入表头
+                            writer.WriteLine("序号,目标位置,电机位置,时间(秒)");
+                            
+                            // 写入数据
+                            for (int i = 0; i < currentData.Count; i++)
+                            {
+                                writer.WriteLine($"{i + 1},{currentData[i][0]:F6},{currentData[i][1]:F6},{currentData[i][2]:F6}");
+                            }
+                        }
+                        
+                        // 保存成功后清空数组
+                        ClearPositionData();
+                        isRecordingData = false; // 停止记录
+                        
+                        Console.WriteLine($"数据已成功保存到: {saveDialog.FileName}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"保存文件时出错: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理数据时出错: {ex.Message}");
+            }
+        }
+
         private void checkpos_CheckedChanged_1(object sender, EventArgs e)
         {
 
         }
-        private void btpositive_CheckedChanged(object sender, EventArgs e)
-        {
 
-        }
-        private void btnegative_CheckedChanged(object sender, EventArgs e)
+        private void button11_Click(object sender, EventArgs e)
         {
-
+            try
+            {
+                // 线程安全地获取数据
+                List<float[]> currentData;
+                lock (dataLock)
+                {
+                    currentData = new List<float[]>(positionData);
+                }
+                
+                if (currentData.Count == 0)
+                {
+                    // 开始记录数据
+                    isRecordingData = true;
+                    tickStart = Environment.TickCount;  // 重置时间戳
+                    return;
+                }
+                
+                // 直接清空数据并重新开始记录
+                ClearPositionData();
+                tickStart = Environment.TickCount;  // 重置时间戳
+                isRecordingData = true;  // 重新开始记录
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理位置数据时出错: {ex.Message}");
+            }
         }
+
         private void MotorControl_Resize(object sender, EventArgs e)
         {
             try
