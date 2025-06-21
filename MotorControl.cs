@@ -46,6 +46,10 @@ namespace MotorControl6h39
         private readonly object dataLock = new object();  // 用于线程安全的数据访问
         private bool isRecordingData = false;  // 控制数据记录开始的标志
         
+        // 添加动画效果相关变量
+        private System.Windows.Forms.Timer animationTimer;  // 用于button11动画效果
+        private bool isButtonBlinking = false;  // 控制按钮闪烁状态
+        
         // 添加清空数据的方法
         private void ClearPositionData()
         {
@@ -1068,6 +1072,7 @@ namespace MotorControl6h39
                         // 保存成功后清空数组
                         ClearPositionData();
                         isRecordingData = false; // 停止记录
+                        StopButtonAnimation(); // 停止按钮动画
                         
                         Console.WriteLine($"数据已成功保存到: {saveDialog.FileName}");
                     }
@@ -1104,6 +1109,7 @@ namespace MotorControl6h39
                     // 开始记录数据
                     isRecordingData = true;
                     tickStart = Environment.TickCount;  // 重置时间戳
+                    StartButtonAnimation(); // 开始按钮动画
                     return;
                 }
                 
@@ -1111,6 +1117,7 @@ namespace MotorControl6h39
                 ClearPositionData();
                 tickStart = Environment.TickCount;  // 重置时间戳
                 isRecordingData = true;  // 重新开始记录
+                StartButtonAnimation(); // 开始按钮动画
             }
             catch (Exception ex)
             {
@@ -1173,12 +1180,14 @@ namespace MotorControl6h39
 
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
-            // 删除线程相关代码
-            // shouldStop = true;
-            // if (processThread != null && processThread.IsAlive)
-            // {
-            //     processThread.Join(1000);
-            // }
+            // 停止并释放动画定时器
+            if (animationTimer != null)
+            {
+                animationTimer.Stop();
+                animationTimer.Dispose();
+                animationTimer = null;
+            }
+            
             base.OnFormClosing(e);
         }
 
@@ -1235,6 +1244,59 @@ namespace MotorControl6h39
             catch (Exception ex)
             {
                 Console.WriteLine($"Legend点击处理错误: {ex.Message}");
+            }
+        }
+
+        // 开始按钮动画效果
+        private void StartButtonAnimation()
+        {
+            if (animationTimer == null)
+            {
+                animationTimer = new System.Windows.Forms.Timer();
+                animationTimer.Interval = 500; // 500毫秒闪烁间隔
+                animationTimer.Tick += AnimationTimer_Tick;
+            }
+            
+            if (!animationTimer.Enabled)
+            {
+                animationTimer.Start();
+                isButtonBlinking = true;
+            }
+        }
+        
+        // 停止按钮动画效果
+        private void StopButtonAnimation()
+        {
+            if (animationTimer != null && animationTimer.Enabled)
+            {
+                animationTimer.Stop();
+                isButtonBlinking = false;
+                
+                // 恢复按钮原始颜色
+                if (button11 != null)
+                {
+                    button11.BackColor = SystemColors.Control;
+                    button11.ForeColor = SystemColors.ControlText;
+                }
+            }
+        }
+        
+        // 动画定时器事件
+        private void AnimationTimer_Tick(object sender, EventArgs e)
+        {
+            if (button11 != null && isButtonBlinking)
+            {
+                // 切换按钮颜色实现闪烁效果
+                if (button11.BackColor == Color.Red)
+                {
+                    button11.BackColor = SystemColors.Control;
+                    button11.ForeColor = SystemColors.ControlText;
+                }
+                else
+                {
+                    button11.BackColor = Color.Red;
+                    button11.ForeColor = Color.White;
+                }
             }
         }
     }
