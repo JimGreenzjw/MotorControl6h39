@@ -347,6 +347,9 @@ namespace MotorControl6h39
 
             // Set minimum form size to prevent controls from overlapping
             this.MinimumSize = new System.Drawing.Size(1024, 768);
+
+            // 注册checkBox2的CheckedChanged事件
+            checkBox2.CheckedChanged += new EventHandler(checkBox2_CheckedChanged);
         }
         private void btrefesh_Click(object sender, EventArgs e)
         {
@@ -872,19 +875,6 @@ namespace MotorControl6h39
             Console.WriteLine("串口已断开连接");
         }
 
-        private void btexit_Click(object sender, EventArgs e)
-        {
-            DialogResult result = MessageBox.Show("Do you want to exit?",
-                "Nhom 9", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
-            if (result == DialogResult.Yes)
-            {
-                MessageBox.Show("Thanks!", "Nhom 9");
-                this.Close();
-            }
-        }
-
-
-
 
         //CONTROL TAB
 
@@ -935,92 +925,11 @@ namespace MotorControl6h39
 
         }
 
-        private void button8_Click(object sender, EventArgs e)
-        {
-            // 手动测试图表功能
-            try
-            {
-                // 清空现有数据
-                if (listPointsGoal != null)
-                {
-                    listPointsGoal.Clear();
-                }
-                if (listPointsMotor != null)
-                {
-                    listPointsMotor.Clear();
-                }
-                if (listPointsError != null)
-                {
-                    listPointsError.Clear();
-                }
-                
-                // 重置时间戳
-                tickStart = Environment.TickCount;
-                
-                // 添加测试数据点
-                for (int i = 0; i < 10; i++)
-                {
-                    float testGoal = i * 2.0f;
-                    float testMotor = i * 1.8f;
-                    float testError = testGoal - testMotor;
-                    
-                    draw(testGoal, testMotor, testError);
-                    
-                    // 短暂延迟
-                    Thread.Sleep(50);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"图表测试错误: {ex.Message}");
-            }
-        }
-
         private void button7_Click(object sender, EventArgs e)
         {
-            // 简单图表测试
-            try
-            {
-                Console.WriteLine("开始简单图表测试...");
-                
-                // 检查图表对象
-                Console.WriteLine($"zedGraphControl1: {zedGraphControl1 != null}");
-                Console.WriteLine($"myPane: {myPane != null}");
-                Console.WriteLine($"listPointsGoal: {listPointsGoal != null}");
-                Console.WriteLine($"myCurveGoal: {myCurveGoal != null}");
-                
-                // 添加一个简单的测试点
-                if (listPointsGoal != null && listPointsMotor != null && listPointsError != null)
-                {
-                    double testTime = 1.0;
-                    float testGoal = 10.0f;
-                    float testMotor = 8.0f;
-                    float testError = 2.0f;
-                    
-                    listPointsGoal.Add(testTime, testGoal);
-                    listPointsMotor.Add(testTime, testMotor);
-                    listPointsError.Add(testTime, testError);
-                    
-                    Console.WriteLine($"测试点添加成功: 时间={testTime}, 目标={testGoal}, 电机={testMotor}, 误差={testError}");
-                    
-                    // 强制刷新图表
-                    if (zedGraphControl1 != null)
-                    {
-                        zedGraphControl1.AxisChange();
-                        zedGraphControl1.Invalidate();
-                        Console.WriteLine("图表刷新完成");
-                    }
-                }
-                else
-                {
-                    Console.WriteLine("数据点列表为空！");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"图表测试错误: {ex.Message}");
-            }
+
         }
+
 
         private void btstop_Click(object sender, EventArgs e)
         {
@@ -1191,9 +1100,89 @@ namespace MotorControl6h39
             base.OnFormClosing(e);
         }
 
+        private void button4_Click(object sender, EventArgs e)
+        {
+            try
+            {
+                if (P == null || !P.IsOpen)
+                {
+                    return;
+                }
+                
+                // 获取textBox1的输入值
+                if (string.IsNullOrEmpty(textBox1.Text))
+                {
+                    Console.WriteLine("请输入目标位置");
+                    return;
+                }
+                
+                // 尝试将输入转换为数字
+                if (float.TryParse(textBox1.Text, out float targetPosition))
+                {
+                    // 构造移动命令
+                    string moveCommand = $"move to {targetPosition}";
+                    
+                    // 发送命令
+                    byte[] commandBytes = Encoding.UTF8.GetBytes(moveCommand + "\r\n");
+                    P.Write(commandBytes, 0, commandBytes.Length);
+                    
+                    Console.WriteLine($"发送移动命令: {moveCommand}");
+                }
+                else
+                {
+                    Console.WriteLine("输入格式错误，请输入有效的数字");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"发送移动命令时出错: {ex.Message}");
+            }
+        }
+
         private void button5_Click(object sender, EventArgs e)
         {
-            // 测试方法已移除
+            try
+            {
+                if (P == null || !P.IsOpen)
+                {
+                    return;
+                }
+                
+                // 获取四个输入值（需要添加第4个输入框）
+                if (string.IsNullOrEmpty(textBox13.Text) || string.IsNullOrEmpty(textBox14.Text) || 
+                    string.IsNullOrEmpty(textBox16.Text) || string.IsNullOrEmpty(textBox15.Text))
+                {
+                    Console.WriteLine("请填写所有参数");
+                    return;
+                }
+                
+                // 尝试将输入转换为数字
+                if (float.TryParse(textBox15.Text, out float param1) && 
+                    float.TryParse(textBox13.Text, out float param2) && 
+                    float.TryParse(textBox14.Text, out float param3) &&
+                    float.TryParse(textBox16.Text, out float param4))
+                {
+                    // 构造频率移动命令 - 添加中心点参数
+                    // 格式：freq move amplitude start_freq end_freq center_point
+                    string freqMoveCommand = $"freq move {param2:F3} {param3:F3} {param4:F3} {param1:F3}";
+                    
+                    // 发送命令
+                    byte[] commandBytes = Encoding.UTF8.GetBytes(freqMoveCommand + "\r\n");
+                    P.Write(commandBytes, 0, commandBytes.Length);
+                           
+                    // 清空串口缓冲区，确保命令完整发送
+                    P.DiscardInBuffer();
+                    P.DiscardOutBuffer();
+                }
+                else
+                {
+                    Console.WriteLine("输入格式错误，请输入有效的数字");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"发送频率移动命令时出错: {ex.Message}");
+            }
         }
 
         private void zedGraphControl1_MouseClick(object sender, MouseEventArgs e)
@@ -1297,6 +1286,36 @@ namespace MotorControl6h39
                     button11.BackColor = Color.Red;
                     button11.ForeColor = Color.White;
                 }
+            }
+        }
+
+        private void btnegative_CheckedChanged(object sender, EventArgs e)
+        {
+
+        }
+        
+        private void checkBox2_CheckedChanged(object sender, EventArgs e)
+        {
+            try
+            {
+                if (P != null && P.IsOpen)
+                {
+                    string debugCommand = checkBox2.Checked ? "set debug 1" : "set debug 0";
+                    
+                    // 发送调试命令
+                    byte[] commandBytes = Encoding.UTF8.GetBytes(debugCommand + "\r\n");
+                    P.Write(commandBytes, 0, commandBytes.Length);
+                    
+                    Console.WriteLine($"发送调试命令: {debugCommand}");
+                }
+                else
+                {
+                    Console.WriteLine("串口未连接，无法发送调试命令");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"发送调试命令时出错: {ex.Message}");
             }
         }
     }
