@@ -94,6 +94,8 @@ namespace MotorControl6h39
             this.button12 = new System.Windows.Forms.Button();
             this.button11 = new System.Windows.Forms.Button();
             this.groupBox2 = new System.Windows.Forms.GroupBox();
+            this.label14 = new System.Windows.Forms.Label();
+            this.textBox15 = new System.Windows.Forms.TextBox();
             this.button5 = new System.Windows.Forms.Button();
             this.label26 = new System.Windows.Forms.Label();
             this.textBox16 = new System.Windows.Forms.TextBox();
@@ -113,8 +115,8 @@ namespace MotorControl6h39
             this.groupBox10 = new System.Windows.Forms.GroupBox();
             this.textBox1 = new System.Windows.Forms.TextBox();
             this.label15 = new System.Windows.Forms.Label();
-            this.button4 = new System.Windows.Forms.Button();
             this.label16 = new System.Windows.Forms.Label();
+            this.button4 = new System.Windows.Forms.Button();
             this.timer1 = new System.Windows.Forms.Timer(this.components);
             this.timercheck = new System.Windows.Forms.Timer(this.components);
             this.groupBox5 = new System.Windows.Forms.GroupBox();
@@ -128,8 +130,13 @@ namespace MotorControl6h39
             this.textBox9 = new System.Windows.Forms.TextBox();
             this.label21 = new System.Windows.Forms.Label();
             this.textBox8 = new System.Windows.Forms.TextBox();
-            this.textBox15 = new System.Windows.Forms.TextBox();
-            this.label14 = new System.Windows.Forms.Label();
+            this.tabPage3 = new System.Windows.Forms.TabPage();
+            this.zedGraphControlBode = new ZedGraph.ZedGraphControl();
+            this.bodeGraphPanel = new System.Windows.Forms.Panel();
+            this.bodeControlPanel = new System.Windows.Forms.Panel();
+            this.buttonGenerateBode = new System.Windows.Forms.Button();
+            this.labelBodeInfo = new System.Windows.Forms.Label();
+            this.richTextBoxBode = new System.Windows.Forms.RichTextBox();
             this.tabControl1.SuspendLayout();
             this.tabPage1.SuspendLayout();
             this.groupBox4.SuspendLayout();
@@ -145,6 +152,9 @@ namespace MotorControl6h39
             this.groupBox9.SuspendLayout();
             this.groupBox10.SuspendLayout();
             this.groupBox5.SuspendLayout();
+            this.tabPage3.SuspendLayout();
+            this.bodeGraphPanel.SuspendLayout();
+            this.bodeControlPanel.SuspendLayout();
             this.SuspendLayout();
             // 
             // btdisc
@@ -184,7 +194,7 @@ namespace MotorControl6h39
             this.label5.Location = new System.Drawing.Point(56, 285);
             this.label5.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label5.Name = "label5";
-            this.label5.Size = new System.Drawing.Size(104, 38);
+            this.label5.Size = new System.Drawing.Size(139, 51);
             this.label5.TabIndex = 26;
             this.label5.Text = "停止位";
             // 
@@ -197,7 +207,7 @@ namespace MotorControl6h39
             this.cbBit.Location = new System.Drawing.Point(202, 282);
             this.cbBit.Margin = new System.Windows.Forms.Padding(4);
             this.cbBit.Name = "cbBit";
-            this.cbBit.Size = new System.Drawing.Size(240, 46);
+            this.cbBit.Size = new System.Drawing.Size(240, 58);
             this.cbBit.TabIndex = 25;
             this.cbBit.SelectedIndexChanged += new System.EventHandler(this.cbBit_SelectedIndexChanged);
             // 
@@ -208,7 +218,7 @@ namespace MotorControl6h39
             this.label4.Location = new System.Drawing.Point(56, 225);
             this.label4.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label4.Name = "label4";
-            this.label4.Size = new System.Drawing.Size(75, 38);
+            this.label4.Size = new System.Drawing.Size(100, 51);
             this.label4.TabIndex = 24;
             this.label4.Text = "校验";
             // 
@@ -219,7 +229,7 @@ namespace MotorControl6h39
             this.label3.Location = new System.Drawing.Point(56, 166);
             this.label3.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label3.Name = "label3";
-            this.label3.Size = new System.Drawing.Size(104, 38);
+            this.label3.Size = new System.Drawing.Size(139, 51);
             this.label3.TabIndex = 23;
             this.label3.Text = "数据位";
             // 
@@ -230,7 +240,7 @@ namespace MotorControl6h39
             this.label2.Location = new System.Drawing.Point(56, 110);
             this.label2.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label2.Name = "label2";
-            this.label2.Size = new System.Drawing.Size(104, 38);
+            this.label2.Size = new System.Drawing.Size(139, 51);
             this.label2.TabIndex = 22;
             this.label2.Text = "波特率";
             // 
@@ -241,7 +251,7 @@ namespace MotorControl6h39
             this.label1.Location = new System.Drawing.Point(66, 50);
             this.label1.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(75, 38);
+            this.label1.Size = new System.Drawing.Size(100, 51);
             this.label1.TabIndex = 21;
             this.label1.Text = "端口";
             // 
@@ -254,7 +264,7 @@ namespace MotorControl6h39
             this.cbParity.Location = new System.Drawing.Point(202, 218);
             this.cbParity.Margin = new System.Windows.Forms.Padding(4);
             this.cbParity.Name = "cbParity";
-            this.cbParity.Size = new System.Drawing.Size(240, 46);
+            this.cbParity.Size = new System.Drawing.Size(240, 58);
             this.cbParity.TabIndex = 19;
             this.cbParity.SelectedIndexChanged += new System.EventHandler(this.cbParity_SelectedIndexChanged);
             // 
@@ -267,7 +277,7 @@ namespace MotorControl6h39
             this.cbBits.Location = new System.Drawing.Point(202, 164);
             this.cbBits.Margin = new System.Windows.Forms.Padding(4);
             this.cbBits.Name = "cbBits";
-            this.cbBits.Size = new System.Drawing.Size(240, 46);
+            this.cbBits.Size = new System.Drawing.Size(240, 58);
             this.cbBits.TabIndex = 18;
             this.cbBits.SelectedIndexChanged += new System.EventHandler(this.cbBits_SelectedIndexChanged);
             // 
@@ -280,7 +290,7 @@ namespace MotorControl6h39
             this.cbRate.Location = new System.Drawing.Point(202, 100);
             this.cbRate.Margin = new System.Windows.Forms.Padding(4);
             this.cbRate.Name = "cbRate";
-            this.cbRate.Size = new System.Drawing.Size(240, 46);
+            this.cbRate.Size = new System.Drawing.Size(240, 58);
             this.cbRate.TabIndex = 17;
             this.cbRate.SelectedIndexChanged += new System.EventHandler(this.cbRate_SelectedIndexChanged);
             // 
@@ -295,7 +305,7 @@ namespace MotorControl6h39
             this.cbCom.Location = new System.Drawing.Point(202, 42);
             this.cbCom.Margin = new System.Windows.Forms.Padding(4);
             this.cbCom.Name = "cbCom";
-            this.cbCom.Size = new System.Drawing.Size(240, 46);
+            this.cbCom.Size = new System.Drawing.Size(240, 58);
             this.cbCom.TabIndex = 20;
             this.cbCom.DrawItem += new System.Windows.Forms.DrawItemEventHandler(this.cbCom_DrawItem);
             this.cbCom.DropDown += new System.EventHandler(this.cbCom_DropDown);
@@ -308,6 +318,7 @@ namespace MotorControl6h39
             // 
             this.tabControl1.Controls.Add(this.tabPage1);
             this.tabControl1.Controls.Add(this.tabPage2);
+            this.tabControl1.Controls.Add(this.tabPage3);
             this.tabControl1.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl1.Font = new System.Drawing.Font("Segoe UI Semibold", 14F, System.Drawing.FontStyle.Bold);
             this.tabControl1.ItemSize = new System.Drawing.Size(240, 50);
@@ -330,11 +341,11 @@ namespace MotorControl6h39
             this.tabPage1.Controls.Add(this.groupBox8);
             this.tabPage1.Controls.Add(this.groupBox7);
             this.tabPage1.Controls.Add(this.groupBox6);
-            this.tabPage1.Location = new System.Drawing.Point(4, 54);
+            this.tabPage1.Location = new System.Drawing.Point(8, 58);
             this.tabPage1.Margin = new System.Windows.Forms.Padding(4);
             this.tabPage1.Name = "tabPage1";
             this.tabPage1.Padding = new System.Windows.Forms.Padding(4);
-            this.tabPage1.Size = new System.Drawing.Size(2818, 1474);
+            this.tabPage1.Size = new System.Drawing.Size(2810, 1466);
             this.tabPage1.TabIndex = 0;
             this.tabPage1.Text = "连接设置";
             this.tabPage1.Click += new System.EventHandler(this.tabPage1_Click);
@@ -346,7 +357,7 @@ namespace MotorControl6h39
             this.label10.Location = new System.Drawing.Point(1210, 560);
             this.label10.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label10.Name = "label10";
-            this.label10.Size = new System.Drawing.Size(137, 38);
+            this.label10.Size = new System.Drawing.Size(182, 51);
             this.label10.TabIndex = 58;
             this.label10.Text = "串口输出";
             // 
@@ -381,7 +392,7 @@ namespace MotorControl6h39
             this.textBox5.Location = new System.Drawing.Point(232, 108);
             this.textBox5.Margin = new System.Windows.Forms.Padding(4);
             this.textBox5.Name = "textBox5";
-            this.textBox5.Size = new System.Drawing.Size(178, 41);
+            this.textBox5.Size = new System.Drawing.Size(178, 53);
             this.textBox5.TabIndex = 48;
             // 
             // button3
@@ -404,7 +415,7 @@ namespace MotorControl6h39
             this.textBox6.Location = new System.Drawing.Point(232, 160);
             this.textBox6.Margin = new System.Windows.Forms.Padding(4);
             this.textBox6.Name = "textBox6";
-            this.textBox6.Size = new System.Drawing.Size(178, 41);
+            this.textBox6.Size = new System.Drawing.Size(178, 53);
             this.textBox6.TabIndex = 49;
             // 
             // label18
@@ -414,7 +425,7 @@ namespace MotorControl6h39
             this.label18.Location = new System.Drawing.Point(28, 50);
             this.label18.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label18.Name = "label18";
-            this.label18.Size = new System.Drawing.Size(137, 38);
+            this.label18.Size = new System.Drawing.Size(182, 51);
             this.label18.TabIndex = 49;
             this.label18.Text = "最大电流";
             // 
@@ -425,7 +436,7 @@ namespace MotorControl6h39
             this.label19.Location = new System.Drawing.Point(28, 110);
             this.label19.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label19.Name = "label19";
-            this.label19.Size = new System.Drawing.Size(137, 38);
+            this.label19.Size = new System.Drawing.Size(182, 51);
             this.label19.TabIndex = 50;
             this.label19.Text = "最小电流";
             // 
@@ -436,7 +447,7 @@ namespace MotorControl6h39
             this.label20.Location = new System.Drawing.Point(28, 162);
             this.label20.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label20.Name = "label20";
-            this.label20.Size = new System.Drawing.Size(197, 38);
+            this.label20.Size = new System.Drawing.Size(262, 51);
             this.label20.TabIndex = 51;
             this.label20.Text = "输出转换系数";
             // 
@@ -446,7 +457,7 @@ namespace MotorControl6h39
             this.textBox7.Location = new System.Drawing.Point(232, 50);
             this.textBox7.Margin = new System.Windows.Forms.Padding(4);
             this.textBox7.Name = "textBox7";
-            this.textBox7.Size = new System.Drawing.Size(178, 41);
+            this.textBox7.Size = new System.Drawing.Size(178, 53);
             this.textBox7.TabIndex = 48;
             // 
             // groupBox3
@@ -471,7 +482,7 @@ namespace MotorControl6h39
             this.textBox3.Location = new System.Drawing.Point(88, 108);
             this.textBox3.Margin = new System.Windows.Forms.Padding(4);
             this.textBox3.Name = "textBox3";
-            this.textBox3.Size = new System.Drawing.Size(228, 41);
+            this.textBox3.Size = new System.Drawing.Size(228, 53);
             this.textBox3.TabIndex = 48;
             // 
             // button2
@@ -494,7 +505,7 @@ namespace MotorControl6h39
             this.textBox4.Location = new System.Drawing.Point(88, 164);
             this.textBox4.Margin = new System.Windows.Forms.Padding(4);
             this.textBox4.Name = "textBox4";
-            this.textBox4.Size = new System.Drawing.Size(228, 41);
+            this.textBox4.Size = new System.Drawing.Size(228, 53);
             this.textBox4.TabIndex = 49;
             // 
             // label6
@@ -504,7 +515,7 @@ namespace MotorControl6h39
             this.label6.Location = new System.Drawing.Point(28, 50);
             this.label6.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label6.Name = "label6";
-            this.label6.Size = new System.Drawing.Size(52, 38);
+            this.label6.Size = new System.Drawing.Size(71, 51);
             this.label6.TabIndex = 49;
             this.label6.Text = "Kp";
             // 
@@ -515,7 +526,7 @@ namespace MotorControl6h39
             this.label11.Location = new System.Drawing.Point(28, 110);
             this.label11.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label11.Name = "label11";
-            this.label11.Size = new System.Drawing.Size(43, 38);
+            this.label11.Size = new System.Drawing.Size(58, 51);
             this.label11.TabIndex = 50;
             this.label11.Text = "Ki";
             // 
@@ -526,7 +537,7 @@ namespace MotorControl6h39
             this.label17.Location = new System.Drawing.Point(28, 164);
             this.label17.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label17.Name = "label17";
-            this.label17.Size = new System.Drawing.Size(52, 38);
+            this.label17.Size = new System.Drawing.Size(71, 51);
             this.label17.TabIndex = 51;
             this.label17.Text = "Kd";
             // 
@@ -536,7 +547,7 @@ namespace MotorControl6h39
             this.textBox2.Location = new System.Drawing.Point(88, 50);
             this.textBox2.Margin = new System.Windows.Forms.Padding(4);
             this.textBox2.Name = "textBox2";
-            this.textBox2.Size = new System.Drawing.Size(228, 41);
+            this.textBox2.Size = new System.Drawing.Size(228, 53);
             this.textBox2.TabIndex = 48;
             // 
             // groupBox1
@@ -561,7 +572,7 @@ namespace MotorControl6h39
             this.textBox21.Location = new System.Drawing.Point(76, 164);
             this.textBox21.Margin = new System.Windows.Forms.Padding(4);
             this.textBox21.Name = "textBox21";
-            this.textBox21.Size = new System.Drawing.Size(228, 41);
+            this.textBox21.Size = new System.Drawing.Size(228, 53);
             this.textBox21.TabIndex = 51;
             // 
             // textBox20
@@ -570,7 +581,7 @@ namespace MotorControl6h39
             this.textBox20.Location = new System.Drawing.Point(76, 111);
             this.textBox20.Margin = new System.Windows.Forms.Padding(4);
             this.textBox20.Name = "textBox20";
-            this.textBox20.Size = new System.Drawing.Size(228, 41);
+            this.textBox20.Size = new System.Drawing.Size(228, 53);
             this.textBox20.TabIndex = 50;
             // 
             // textBox19
@@ -579,7 +590,7 @@ namespace MotorControl6h39
             this.textBox19.Location = new System.Drawing.Point(76, 58);
             this.textBox19.Margin = new System.Windows.Forms.Padding(4);
             this.textBox19.Name = "textBox19";
-            this.textBox19.Size = new System.Drawing.Size(228, 41);
+            this.textBox19.Size = new System.Drawing.Size(228, 53);
             this.textBox19.TabIndex = 49;
             // 
             // button1
@@ -603,7 +614,7 @@ namespace MotorControl6h39
             this.label9.Location = new System.Drawing.Point(8, 50);
             this.label9.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label9.Name = "label9";
-            this.label9.Size = new System.Drawing.Size(52, 38);
+            this.label9.Size = new System.Drawing.Size(71, 51);
             this.label9.TabIndex = 28;
             this.label9.Text = "Kp";
             // 
@@ -614,7 +625,7 @@ namespace MotorControl6h39
             this.label7.Location = new System.Drawing.Point(8, 111);
             this.label7.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label7.Name = "label7";
-            this.label7.Size = new System.Drawing.Size(43, 38);
+            this.label7.Size = new System.Drawing.Size(58, 51);
             this.label7.TabIndex = 29;
             this.label7.Text = "Ki";
             // 
@@ -625,7 +636,7 @@ namespace MotorControl6h39
             this.label8.Location = new System.Drawing.Point(8, 160);
             this.label8.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label8.Name = "label8";
-            this.label8.Size = new System.Drawing.Size(52, 38);
+            this.label8.Size = new System.Drawing.Size(71, 51);
             this.label8.TabIndex = 30;
             this.label8.Text = "Kd";
             // 
@@ -651,7 +662,7 @@ namespace MotorControl6h39
             this.comboBox3.Location = new System.Drawing.Point(184, 68);
             this.comboBox3.Margin = new System.Windows.Forms.Padding(4);
             this.comboBox3.Name = "comboBox3";
-            this.comboBox3.Size = new System.Drawing.Size(272, 46);
+            this.comboBox3.Size = new System.Drawing.Size(272, 58);
             this.comboBox3.TabIndex = 17;
             // 
             // button9
@@ -667,6 +678,7 @@ namespace MotorControl6h39
             this.button9.TabIndex = 30;
             this.button9.Text = "断开连接";
             this.button9.UseVisualStyleBackColor = false;
+            this.button9.Click += new System.EventHandler(this.button9_Click);
             // 
             // button10
             // 
@@ -681,6 +693,7 @@ namespace MotorControl6h39
             this.button10.TabIndex = 27;
             this.button10.Text = "连接";
             this.button10.UseVisualStyleBackColor = false;
+            this.button10.Click += new System.EventHandler(this.button10_Click);
             // 
             // label30
             // 
@@ -689,7 +702,7 @@ namespace MotorControl6h39
             this.label30.Location = new System.Drawing.Point(44, 70);
             this.label30.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label30.Name = "label30";
-            this.label30.Size = new System.Drawing.Size(75, 38);
+            this.label30.Size = new System.Drawing.Size(100, 51);
             this.label30.TabIndex = 22;
             this.label30.Text = "网络";
             // 
@@ -715,7 +728,7 @@ namespace MotorControl6h39
             this.comboBox2.Location = new System.Drawing.Point(184, 68);
             this.comboBox2.Margin = new System.Windows.Forms.Padding(4);
             this.comboBox2.Name = "comboBox2";
-            this.comboBox2.Size = new System.Drawing.Size(240, 46);
+            this.comboBox2.Size = new System.Drawing.Size(240, 58);
             this.comboBox2.TabIndex = 17;
             // 
             // button7
@@ -754,7 +767,7 @@ namespace MotorControl6h39
             this.label31.Location = new System.Drawing.Point(44, 70);
             this.label31.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label31.Name = "label31";
-            this.label31.Size = new System.Drawing.Size(104, 38);
+            this.label31.Size = new System.Drawing.Size(139, 51);
             this.label31.TabIndex = 22;
             this.label31.Text = "波特率";
             // 
@@ -785,7 +798,7 @@ namespace MotorControl6h39
             this.checkBox2.AutoSize = true;
             this.checkBox2.Location = new System.Drawing.Point(283, 356);
             this.checkBox2.Name = "checkBox2";
-            this.checkBox2.Size = new System.Drawing.Size(159, 42);
+            this.checkBox2.Size = new System.Drawing.Size(210, 55);
             this.checkBox2.TabIndex = 33;
             this.checkBox2.Text = "调试模式";
             this.checkBox2.UseVisualStyleBackColor = true;
@@ -794,10 +807,10 @@ namespace MotorControl6h39
             // 
             this.tabPage2.Controls.Add(this.graphPanel);
             this.tabPage2.Controls.Add(this.leftControlPanel);
-            this.tabPage2.Location = new System.Drawing.Point(4, 54);
+            this.tabPage2.Location = new System.Drawing.Point(8, 58);
             this.tabPage2.Name = "tabPage2";
             this.tabPage2.Padding = new System.Windows.Forms.Padding(10);
-            this.tabPage2.Size = new System.Drawing.Size(2818, 1474);
+            this.tabPage2.Size = new System.Drawing.Size(2810, 1466);
             this.tabPage2.TabIndex = 2;
             this.tabPage2.Text = "追焦测试";
             this.tabPage2.UseVisualStyleBackColor = true;
@@ -892,6 +905,27 @@ namespace MotorControl6h39
             this.groupBox2.TabStop = false;
             this.groupBox2.Text = "扫频测试";
             // 
+            // label14
+            // 
+            this.label14.AutoSize = true;
+            this.label14.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
+            this.label14.Location = new System.Drawing.Point(9, 41);
+            this.label14.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.label14.Name = "label14";
+            this.label14.Size = new System.Drawing.Size(102, 51);
+            this.label14.TabIndex = 42;
+            this.label14.Text = "中心";
+            // 
+            // textBox15
+            // 
+            this.textBox15.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.textBox15.Location = new System.Drawing.Point(153, 39);
+            this.textBox15.Margin = new System.Windows.Forms.Padding(4);
+            this.textBox15.Name = "textBox15";
+            this.textBox15.Size = new System.Drawing.Size(228, 53);
+            this.textBox15.TabIndex = 41;
+            this.textBox15.Text = "-1";
+            // 
             // button5
             // 
             this.button5.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(122)))), ((int)(((byte)(204)))));
@@ -914,7 +948,7 @@ namespace MotorControl6h39
             this.label26.Location = new System.Drawing.Point(8, 202);
             this.label26.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label26.Name = "label26";
-            this.label26.Size = new System.Drawing.Size(137, 38);
+            this.label26.Size = new System.Drawing.Size(182, 51);
             this.label26.TabIndex = 39;
             this.label26.Text = "结束频率";
             // 
@@ -924,7 +958,7 @@ namespace MotorControl6h39
             this.textBox16.Location = new System.Drawing.Point(152, 201);
             this.textBox16.Margin = new System.Windows.Forms.Padding(4);
             this.textBox16.Name = "textBox16";
-            this.textBox16.Size = new System.Drawing.Size(228, 41);
+            this.textBox16.Size = new System.Drawing.Size(228, 53);
             this.textBox16.TabIndex = 40;
             this.textBox16.Text = "5";
             // 
@@ -934,7 +968,7 @@ namespace MotorControl6h39
             this.textBox13.Location = new System.Drawing.Point(153, 91);
             this.textBox13.Margin = new System.Windows.Forms.Padding(4);
             this.textBox13.Name = "textBox13";
-            this.textBox13.Size = new System.Drawing.Size(228, 41);
+            this.textBox13.Size = new System.Drawing.Size(228, 53);
             this.textBox13.TabIndex = 33;
             this.textBox13.Text = "0.5";
             // 
@@ -943,7 +977,7 @@ namespace MotorControl6h39
             this.checkBox1.AutoSize = true;
             this.checkBox1.Location = new System.Drawing.Point(3, 258);
             this.checkBox1.Name = "checkBox1";
-            this.checkBox1.Size = new System.Drawing.Size(420, 42);
+            this.checkBox1.Size = new System.Drawing.Size(561, 55);
             this.checkBox1.TabIndex = 32;
             this.checkBox1.Text = "是否在电流输出叠加正弦信号";
             this.checkBox1.UseVisualStyleBackColor = true;
@@ -955,7 +989,7 @@ namespace MotorControl6h39
             this.label13.Location = new System.Drawing.Point(8, 145);
             this.label13.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label13.Name = "label13";
-            this.label13.Size = new System.Drawing.Size(137, 38);
+            this.label13.Size = new System.Drawing.Size(182, 51);
             this.label13.TabIndex = 35;
             this.label13.Text = "开始频率";
             // 
@@ -965,7 +999,7 @@ namespace MotorControl6h39
             this.textBox14.Location = new System.Drawing.Point(153, 143);
             this.textBox14.Margin = new System.Windows.Forms.Padding(4);
             this.textBox14.Name = "textBox14";
-            this.textBox14.Size = new System.Drawing.Size(228, 41);
+            this.textBox14.Size = new System.Drawing.Size(228, 53);
             this.textBox14.TabIndex = 36;
             this.textBox14.Text = "0.1";
             // 
@@ -976,7 +1010,7 @@ namespace MotorControl6h39
             this.label12.Location = new System.Drawing.Point(8, 90);
             this.label12.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label12.Name = "label12";
-            this.label12.Size = new System.Drawing.Size(137, 38);
+            this.label12.Size = new System.Drawing.Size(182, 51);
             this.label12.TabIndex = 34;
             this.label12.Text = "正弦幅值";
             // 
@@ -1004,7 +1038,7 @@ namespace MotorControl6h39
             this.label32.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label32.Name = "label32";
             this.label32.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
-            this.label32.Size = new System.Drawing.Size(69, 38);
+            this.label32.Size = new System.Drawing.Size(92, 51);
             this.label32.TabIndex = 44;
             this.label32.Text = "mm";
             // 
@@ -1014,7 +1048,7 @@ namespace MotorControl6h39
             this.textBox18.Location = new System.Drawing.Point(150, 114);
             this.textBox18.Margin = new System.Windows.Forms.Padding(4);
             this.textBox18.Name = "textBox18";
-            this.textBox18.Size = new System.Drawing.Size(228, 41);
+            this.textBox18.Size = new System.Drawing.Size(228, 53);
             this.textBox18.TabIndex = 42;
             // 
             // label33
@@ -1024,7 +1058,7 @@ namespace MotorControl6h39
             this.label33.Location = new System.Drawing.Point(8, 116);
             this.label33.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label33.Name = "label33";
-            this.label33.Size = new System.Drawing.Size(137, 38);
+            this.label33.Size = new System.Drawing.Size(182, 51);
             this.label33.TabIndex = 43;
             this.label33.Text = "最小距离";
             // 
@@ -1036,7 +1070,7 @@ namespace MotorControl6h39
             this.label28.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label28.Name = "label28";
             this.label28.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
-            this.label28.Size = new System.Drawing.Size(69, 38);
+            this.label28.Size = new System.Drawing.Size(92, 51);
             this.label28.TabIndex = 41;
             this.label28.Text = "mm";
             // 
@@ -1060,7 +1094,7 @@ namespace MotorControl6h39
             this.textBox17.Location = new System.Drawing.Point(153, 58);
             this.textBox17.Margin = new System.Windows.Forms.Padding(4);
             this.textBox17.Name = "textBox17";
-            this.textBox17.Size = new System.Drawing.Size(228, 41);
+            this.textBox17.Size = new System.Drawing.Size(228, 53);
             this.textBox17.TabIndex = 39;
             // 
             // label29
@@ -1070,7 +1104,7 @@ namespace MotorControl6h39
             this.label29.Location = new System.Drawing.Point(8, 58);
             this.label29.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label29.Name = "label29";
-            this.label29.Size = new System.Drawing.Size(137, 38);
+            this.label29.Size = new System.Drawing.Size(182, 51);
             this.label29.TabIndex = 40;
             this.label29.Text = "最大距离";
             // 
@@ -1078,8 +1112,8 @@ namespace MotorControl6h39
             // 
             this.groupBox10.Controls.Add(this.textBox1);
             this.groupBox10.Controls.Add(this.label15);
-            this.groupBox10.Controls.Add(this.button4);
             this.groupBox10.Controls.Add(this.label16);
+            this.groupBox10.Controls.Add(this.button4);
             this.groupBox10.Location = new System.Drawing.Point(10, 14);
             this.groupBox10.Name = "groupBox10";
             this.groupBox10.Size = new System.Drawing.Size(459, 196);
@@ -1093,7 +1127,7 @@ namespace MotorControl6h39
             this.textBox1.Location = new System.Drawing.Point(153, 68);
             this.textBox1.Margin = new System.Windows.Forms.Padding(4);
             this.textBox1.Name = "textBox1";
-            this.textBox1.Size = new System.Drawing.Size(228, 41);
+            this.textBox1.Size = new System.Drawing.Size(228, 53);
             this.textBox1.TabIndex = 29;
             // 
             // label15
@@ -1103,9 +1137,21 @@ namespace MotorControl6h39
             this.label15.Location = new System.Drawing.Point(8, 68);
             this.label15.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label15.Name = "label15";
-            this.label15.Size = new System.Drawing.Size(137, 38);
+            this.label15.Size = new System.Drawing.Size(182, 51);
             this.label15.TabIndex = 30;
             this.label15.Text = "电机位置";
+            // 
+            // label16
+            // 
+            this.label16.AutoSize = true;
+            this.label16.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
+            this.label16.Location = new System.Drawing.Point(382, 68);
+            this.label16.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.label16.Name = "label16";
+            this.label16.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
+            this.label16.Size = new System.Drawing.Size(92, 51);
+            this.label16.TabIndex = 31;
+            this.label16.Text = "mm";
             // 
             // button4
             // 
@@ -1121,18 +1167,6 @@ namespace MotorControl6h39
             this.button4.Text = "发送";
             this.button4.UseVisualStyleBackColor = false;
             this.button4.Click += new System.EventHandler(this.button4_Click);
-            // 
-            // label16
-            // 
-            this.label16.AutoSize = true;
-            this.label16.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
-            this.label16.Location = new System.Drawing.Point(382, 68);
-            this.label16.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            this.label16.Name = "label16";
-            this.label16.RightToLeft = System.Windows.Forms.RightToLeft.Yes;
-            this.label16.Size = new System.Drawing.Size(69, 38);
-            this.label16.TabIndex = 31;
-            this.label16.Text = "mm";
             // 
             // timer1
             // 
@@ -1176,7 +1210,7 @@ namespace MotorControl6h39
             this.label25.Location = new System.Drawing.Point(1190, 64);
             this.label25.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label25.Name = "label25";
-            this.label25.Size = new System.Drawing.Size(107, 38);
+            this.label25.Size = new System.Drawing.Size(142, 51);
             this.label25.TabIndex = 57;
             this.label25.Text = "光强度";
             // 
@@ -1186,7 +1220,7 @@ namespace MotorControl6h39
             this.textBox12.Location = new System.Drawing.Point(1298, 63);
             this.textBox12.Margin = new System.Windows.Forms.Padding(4);
             this.textBox12.Name = "textBox12";
-            this.textBox12.Size = new System.Drawing.Size(118, 41);
+            this.textBox12.Size = new System.Drawing.Size(118, 53);
             this.textBox12.TabIndex = 56;
             // 
             // label24
@@ -1196,7 +1230,7 @@ namespace MotorControl6h39
             this.label24.Location = new System.Drawing.Point(909, 66);
             this.label24.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label24.Name = "label24";
-            this.label24.Size = new System.Drawing.Size(137, 38);
+            this.label24.Size = new System.Drawing.Size(182, 51);
             this.label24.TabIndex = 55;
             this.label24.Text = "位置指令";
             // 
@@ -1206,7 +1240,7 @@ namespace MotorControl6h39
             this.textBox11.Location = new System.Drawing.Point(1054, 64);
             this.textBox11.Margin = new System.Windows.Forms.Padding(4);
             this.textBox11.Name = "textBox11";
-            this.textBox11.Size = new System.Drawing.Size(118, 41);
+            this.textBox11.Size = new System.Drawing.Size(118, 53);
             this.textBox11.TabIndex = 54;
             // 
             // label23
@@ -1216,7 +1250,7 @@ namespace MotorControl6h39
             this.label23.Location = new System.Drawing.Point(606, 68);
             this.label23.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label23.Name = "label23";
-            this.label23.Size = new System.Drawing.Size(167, 38);
+            this.label23.Size = new System.Drawing.Size(222, 51);
             this.label23.TabIndex = 53;
             this.label23.Text = "编码器位置";
             // 
@@ -1226,7 +1260,7 @@ namespace MotorControl6h39
             this.textBox10.Location = new System.Drawing.Point(780, 64);
             this.textBox10.Margin = new System.Windows.Forms.Padding(4);
             this.textBox10.Name = "textBox10";
-            this.textBox10.Size = new System.Drawing.Size(118, 41);
+            this.textBox10.Size = new System.Drawing.Size(118, 53);
             this.textBox10.TabIndex = 52;
             // 
             // label22
@@ -1236,7 +1270,7 @@ namespace MotorControl6h39
             this.label22.Location = new System.Drawing.Point(334, 64);
             this.label22.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label22.Name = "label22";
-            this.label22.Size = new System.Drawing.Size(137, 38);
+            this.label22.Size = new System.Drawing.Size(182, 51);
             this.label22.TabIndex = 51;
             this.label22.Text = "电机位置";
             // 
@@ -1246,7 +1280,7 @@ namespace MotorControl6h39
             this.textBox9.Location = new System.Drawing.Point(480, 64);
             this.textBox9.Margin = new System.Windows.Forms.Padding(4);
             this.textBox9.Name = "textBox9";
-            this.textBox9.Size = new System.Drawing.Size(118, 41);
+            this.textBox9.Size = new System.Drawing.Size(118, 53);
             this.textBox9.TabIndex = 50;
             // 
             // label21
@@ -1256,7 +1290,7 @@ namespace MotorControl6h39
             this.label21.Location = new System.Drawing.Point(26, 62);
             this.label21.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label21.Name = "label21";
-            this.label21.Size = new System.Drawing.Size(167, 38);
+            this.label21.Size = new System.Drawing.Size(222, 51);
             this.label21.TabIndex = 49;
             this.label21.Text = "电流环输出";
             // 
@@ -1266,29 +1300,94 @@ namespace MotorControl6h39
             this.textBox8.Location = new System.Drawing.Point(200, 62);
             this.textBox8.Margin = new System.Windows.Forms.Padding(4);
             this.textBox8.Name = "textBox8";
-            this.textBox8.Size = new System.Drawing.Size(118, 41);
+            this.textBox8.Size = new System.Drawing.Size(118, 53);
             this.textBox8.TabIndex = 48;
             // 
-            // textBox15
+            // tabPage3
             // 
-            this.textBox15.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBox15.Location = new System.Drawing.Point(153, 39);
-            this.textBox15.Margin = new System.Windows.Forms.Padding(4);
-            this.textBox15.Name = "textBox15";
-            this.textBox15.Size = new System.Drawing.Size(228, 41);
-            this.textBox15.TabIndex = 41;
-            this.textBox15.Text = "-1";
+            this.tabPage3.Controls.Add(this.bodeGraphPanel);
+            this.tabPage3.Controls.Add(this.bodeControlPanel);
+            this.tabPage3.Location = new System.Drawing.Point(8, 58);
+            this.tabPage3.Name = "tabPage3";
+            this.tabPage3.Padding = new System.Windows.Forms.Padding(10);
+            this.tabPage3.Size = new System.Drawing.Size(2810, 1466);
+            this.tabPage3.TabIndex = 3;
+            this.tabPage3.Text = "伯德图";
+            this.tabPage3.UseVisualStyleBackColor = true;
             // 
-            // label14
+            // zedGraphControlBode
             // 
-            this.label14.AutoSize = true;
-            this.label14.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
-            this.label14.Location = new System.Drawing.Point(9, 41);
-            this.label14.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
-            this.label14.Name = "label14";
-            this.label14.Size = new System.Drawing.Size(77, 38);
-            this.label14.TabIndex = 42;
-            this.label14.Text = "中心";
+            this.zedGraphControlBode.AutoScroll = true;
+            this.zedGraphControlBode.BackColor = System.Drawing.Color.White;
+            this.zedGraphControlBode.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.zedGraphControlBode.Font = new System.Drawing.Font("Microsoft Sans Serif", 15F, System.Drawing.FontStyle.Bold);
+            this.zedGraphControlBode.Location = new System.Drawing.Point(10, 10);
+            this.zedGraphControlBode.Margin = new System.Windows.Forms.Padding(6, 4, 6, 4);
+            this.zedGraphControlBode.Name = "zedGraphControlBode";
+            this.zedGraphControlBode.ScrollGrace = 0D;
+            this.zedGraphControlBode.ScrollMaxX = 0D;
+            this.zedGraphControlBode.ScrollMaxY = 0D;
+            this.zedGraphControlBode.ScrollMaxY2 = 0D;
+            this.zedGraphControlBode.ScrollMinX = 0D;
+            this.zedGraphControlBode.ScrollMinY = 0D;
+            this.zedGraphControlBode.ScrollMinY2 = 0D;
+            this.zedGraphControlBode.Size = new System.Drawing.Size(2293, 1258);
+            this.zedGraphControlBode.TabIndex = 1;
+            // 
+            // bodeGraphPanel
+            // 
+            this.bodeGraphPanel.Controls.Add(this.zedGraphControlBode);
+            this.bodeGraphPanel.Location = new System.Drawing.Point(490, 10);
+            this.bodeGraphPanel.Name = "bodeGraphPanel";
+            this.bodeGraphPanel.Padding = new System.Windows.Forms.Padding(10);
+            this.bodeGraphPanel.Size = new System.Drawing.Size(2313, 1278);
+            this.bodeGraphPanel.TabIndex = 0;
+            // 
+            // bodeControlPanel
+            // 
+            this.bodeControlPanel.Controls.Add(this.buttonGenerateBode);
+            this.bodeControlPanel.Controls.Add(this.labelBodeInfo);
+            this.bodeControlPanel.Controls.Add(this.richTextBoxBode);
+            this.bodeControlPanel.Location = new System.Drawing.Point(8, 10);
+            this.bodeControlPanel.Name = "bodeControlPanel";
+            this.bodeControlPanel.Padding = new System.Windows.Forms.Padding(10);
+            this.bodeControlPanel.Size = new System.Drawing.Size(482, 1278);
+            this.bodeControlPanel.TabIndex = 1;
+            // 
+            // buttonGenerateBode
+            // 
+            this.buttonGenerateBode.BackColor = System.Drawing.Color.FromArgb(((int)(((byte)(0)))), ((int)(((byte)(177)))), ((int)(((byte)(89)))));
+            this.buttonGenerateBode.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
+            this.buttonGenerateBode.Font = new System.Drawing.Font("Segoe UI", 10F, System.Drawing.FontStyle.Bold);
+            this.buttonGenerateBode.ForeColor = System.Drawing.Color.White;
+            this.buttonGenerateBode.Location = new System.Drawing.Point(26, 20);
+            this.buttonGenerateBode.Margin = new System.Windows.Forms.Padding(4);
+            this.buttonGenerateBode.Name = "buttonGenerateBode";
+            this.buttonGenerateBode.Size = new System.Drawing.Size(194, 50);
+            this.buttonGenerateBode.TabIndex = 44;
+            this.buttonGenerateBode.Text = "生成伯德图";
+            this.buttonGenerateBode.UseVisualStyleBackColor = false;
+            this.buttonGenerateBode.Click += new System.EventHandler(this.buttonGenerateBode_Click);
+            // 
+            // labelBodeInfo
+            // 
+            this.labelBodeInfo.AutoSize = true;
+            this.labelBodeInfo.Font = new System.Drawing.Font("Segoe UI", 14F, System.Drawing.FontStyle.Bold);
+            this.labelBodeInfo.Location = new System.Drawing.Point(26, 90);
+            this.labelBodeInfo.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.labelBodeInfo.Name = "labelBodeInfo";
+            this.labelBodeInfo.Size = new System.Drawing.Size(182, 51);
+            this.labelBodeInfo.TabIndex = 43;
+            this.labelBodeInfo.Text = "伯德图信息";
+            // 
+            // richTextBoxBode
+            // 
+            this.richTextBoxBode.Location = new System.Drawing.Point(26, 150);
+            this.richTextBoxBode.Margin = new System.Windows.Forms.Padding(2);
+            this.richTextBoxBode.Name = "richTextBoxBode";
+            this.richTextBoxBode.Size = new System.Drawing.Size(430, 300);
+            this.richTextBoxBode.TabIndex = 57;
+            this.richTextBoxBode.Text = "";
             // 
             // MotorControl
             // 
@@ -1330,6 +1429,9 @@ namespace MotorControl6h39
             this.groupBox10.PerformLayout();
             this.groupBox5.ResumeLayout(false);
             this.groupBox5.PerformLayout();
+            this.tabPage3.ResumeLayout(false);
+            this.bodeGraphPanel.ResumeLayout(false);
+            this.bodeControlPanel.ResumeLayout(false);
             this.ResumeLayout(false);
 
         }
@@ -1417,53 +1519,24 @@ namespace MotorControl6h39
         private System.Windows.Forms.Timer timer1;
         private System.Windows.Forms.Timer timercheck;
         private TabPage tabPage2;
-        private Label label16;
-        private Label label15;
-        private TextBox textBox1;
-        private ZedGraph.ZedGraphControl zedGraphControl1;
+        private TabPage tabPage3;
+        private ZedGraph.ZedGraphControl zedGraphControlBode;
+        private System.Windows.Forms.Panel bodeGraphPanel;
+        private System.Windows.Forms.Panel bodeControlPanel;
+        private System.Windows.Forms.Button buttonGenerateBode;
+        private System.Windows.Forms.Label labelBodeInfo;
+        private System.Windows.Forms.RichTextBox richTextBoxBode;
         private GroupBox groupBox5;
-        private Label label21;
-        private TextBox textBox8;
-        private Label label23;
-        private TextBox textBox10;
-        private Label label22;
-        private TextBox textBox9;
         private Label label25;
         private TextBox textBox12;
         private Label label24;
         private TextBox textBox11;
-        private CheckBox checkBox1;
-        private Label label12;
-        private TextBox textBox13;
-        private Label label28;
-        private Label label29;
-        private TextBox textBox17;
-        private Button button4;
-        private GroupBox groupBox2;
-        private Button button5;
-        private Label label26;
-        private TextBox textBox16;
-        private Label label13;
-        private TextBox textBox14;
-        private Button button6;
-        private GroupBox groupBox6;
-        private GroupBox groupBox8;
-        private ComboBox comboBox3;
-        private Button button9;
-        private Button button10;
-        private Label label30;
-        private GroupBox groupBox7;
-        private ComboBox comboBox2;
-        private Button button7;
-        private Button button8;
-        private Label label31;
-        private System.Windows.Forms.Panel leftControlPanel;
-        private System.Windows.Forms.Panel graphPanel;
-        private GroupBox groupBox9;
-        private Label label32;
-        private TextBox textBox18;
-        private Label label33;
-        private GroupBox groupBox10;
+        private Label label23;
+        private TextBox textBox10;
+        private Label label22;
+        private TextBox textBox9;
+        private Label label21;
+        private TextBox textBox8;
         private GroupBox groupBox4;
         private TextBox textBox5;
         private Button button3;
@@ -1495,5 +1568,41 @@ namespace MotorControl6h39
         private CheckBox checkBox2;
         private TextBox textBox15;
         private Label label14;
+        private GroupBox groupBox9;
+        private Label label32;
+        private TextBox textBox18;
+        private Label label33;
+        private Label label28;
+        private Button button6;
+        private TextBox textBox17;
+        private Label label29;
+        private GroupBox groupBox10;
+        private TextBox textBox1;
+        private Label label15;
+        private Label label16;
+        private Button button4;
+        private CheckBox checkBox1;
+        private TextBox textBox14;
+        private TextBox textBox13;
+        private Label label13;
+        private Label label12;
+        private GroupBox groupBox2;
+        private Button button5;
+        private Label label26;
+        private TextBox textBox16;
+        private GroupBox groupBox6;
+        private GroupBox groupBox8;
+        private ComboBox comboBox3;
+        private Button button9;
+        private Button button10;
+        private Label label30;
+        private GroupBox groupBox7;
+        private ComboBox comboBox2;
+        private Button button7;
+        private Button button8;
+        private Label label31;
+        private System.Windows.Forms.Panel leftControlPanel;
+        private System.Windows.Forms.Panel graphPanel;
+        private ZedGraph.ZedGraphControl zedGraphControl1;
     }
 }
