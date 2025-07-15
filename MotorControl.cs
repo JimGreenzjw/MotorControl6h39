@@ -27,13 +27,39 @@ namespace MotorControl6h39
         LineItem myCurveOne;
         //declare an event inside a class
         delegate void SetTextCallback(string text);
-        
+
         // 添加数据缓存队列和锁对象
-        // private Queue<byte> dataBuffer = new Queue<byte>();
-        // private readonly object bufferLock = new object();
-        // private bool isProcessing = false;
-        // private Thread processThread;
-        // private bool shouldStop = false;
+        private Queue<byte> dataBuffer = new Queue<byte>();
+        private readonly object bufferLock = new object();
+        private bool isProcessing = false;
+        private Thread processThread;
+        private bool shouldStop = false;
+        
+        // 添加数据包处理相关变量
+        private const int PACKET_SIZE = 20; // 4个float + 4字节尾标识
+        private const byte TAIL_BYTE1 = 0x00;
+        private const byte TAIL_BYTE2 = 0x00;
+        private const byte TAIL_BYTE3 = 0x80;
+        private const byte TAIL_BYTE4 = 0x7f;
+        
+        // 添加统计信息
+        private int totalPacketsReceived = 0;
+        private int validPacketsProcessed = 0;
+        private int invalidPacketsDropped = 0;
+        private int bufferOverflowCount = 0;
+        private const int MAX_BUFFER_SIZE = 10000; // 最大缓冲区大小
+        
+        // 添加UI更新节流机制
+        private System.Windows.Forms.Timer uiUpdateTimer;
+        private const int UI_UPDATE_INTERVAL = 100; // UI更新间隔(毫秒)
+        private Queue<Action> uiUpdateQueue = new Queue<Action>();
+        private readonly object uiQueueLock = new object();
+        private bool isUiUpdateScheduled = false;
+        
+        // 可配置的UI更新频率
+        private int uiUpdateFrequency = 10; // 每10个数据包更新一次UI
+        private int chartUpdateFrequency = 5; // 每5个数据包更新一次图表
+        private int statusUpdateFrequency = 50; // 每50个数据包显示一次状态
         #endregion
         // 在类级别添加更多的数据点列表和曲线
         private PointPairList listPointsGoal = new PointPairList();    // 目标位置
@@ -45,16 +71,16 @@ namespace MotorControl6h39
         private LineItem myCurvePid;
         private LineItem myCurveError;
         private bool legendClickRegistered = false;
-        
+
         // 添加二维数组来存储目标位置和电机位置数据
         private List<float[]> positionData = new List<float[]>();  // 使用List来动态存储数据
         private readonly object dataLock = new object();  // 用于线程安全的数据访问
         private bool isRecordingData = false;  // 控制数据记录开始的标志
-        
+
         // 添加动画效果相关变量
         private System.Windows.Forms.Timer animationTimer;  // 用于button11动画效果
         private bool isButtonBlinking = false;  // 控制按钮闪烁状态
-        
+
         // 添加UDP接收器相关变量
         private UdpClient udpClient;
         private Thread udpReceiveThread;
@@ -62,7 +88,7 @@ namespace MotorControl6h39
         private int udpPort = 8080;
         private int udpPacketCount = 0;
         private DateTime udpStartTime;
-        
+
         // 添加清空数据的方法
         private void ClearPositionData()
         {
@@ -72,7 +98,7 @@ namespace MotorControl6h39
             }
             Console.WriteLine("位置数据已清空");
         }
-        
+
         // 获取当前数据数量的方法
         private int GetPositionDataCount()
         {
@@ -81,7 +107,7 @@ namespace MotorControl6h39
                 return positionData.Count;
             }
         }
-        
+
         // 获取位置数据为二维数组的方法
         public float[,] GetPositionDataArray()
         {
@@ -89,7 +115,7 @@ namespace MotorControl6h39
             {
                 if (positionData.Count == 0)
                     return new float[0, 4];
-                
+
                 float[,] array = new float[positionData.Count, 4];
                 for (int i = 0; i < positionData.Count; i++)
                 {
@@ -101,17 +127,337 @@ namespace MotorControl6h39
                 return array;
             }
         }
-        
+
+        // FIFO数据处理核心方法
+        private void StartDataProcessing()
+        {
+            if (processThread != null && processThread.IsAlive)
+                return;
+
+            shouldStop = false;
+            isProcessing = true;
+            processThread = new Thread(DataProcessingLoop);
+            processThread.IsBackground = true;
+            processThread.Priority = ThreadPriority.AboveNormal; // 提高处理优先级
+            processThread.Start();
+            Console.WriteLine("FIFO数据处理线程已启动");
+        }
+
+        private void StopDataProcessing()
+        {
+            shouldStop = true;
+            isProcessing = false;
+
+            if (processThread != null && processThread.IsAlive)
+            {
+                processThread.Join(1000); // 等待1秒
+                if (processThread.IsAlive)
+                {
+                    processThread.Abort(); // 强制终止
+                }
+            }
+            Console.WriteLine("FIFO数据处理线程已停止");
+        }
+
+        private void DataProcessingLoop()
+        {
+            while (!shouldStop)
+            {
+                try
+                {
+                    byte[] packet = GetNextPacket();
+                    if (packet != null)
+                    {
+                        ProcessPacket(packet);
+                    }
+                    else
+                    {
+                        // 没有完整数据包，短暂休眠
+                        Thread.Sleep(1);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"数据处理循环错误: {ex.Message}");
+                    Thread.Sleep(10); // 出错时稍长休眠
+                }
+            }
+        }
+
+        private byte[] GetNextPacket()
+        {
+            lock (bufferLock)
+            {
+                // 检查是否有足够的数据构成一个完整的数据包
+                if (dataBuffer.Count < PACKET_SIZE)
+                    return null;
+
+                // 查找数据包边界（尾标识）
+                byte[] bufferArray = dataBuffer.ToArray();
+                int packetStart = -1;
+
+                // 从缓冲区开始查找尾标识
+                for (int i = 0; i <= bufferArray.Length - PACKET_SIZE; i++)
+                {
+                    if (IsValidTail(bufferArray, i + PACKET_SIZE - 4))
+                    {
+                        packetStart = i;
+                        break;
+                    }
+                }
+
+                if (packetStart == -1)
+                {
+                    // 没有找到完整的数据包，保留最后3个字节（可能是不完整的尾标识）
+                    int bytesToKeep = Math.Min(3, bufferArray.Length);
+                    dataBuffer.Clear();
+                    for (int i = bufferArray.Length - bytesToKeep; i < bufferArray.Length; i++)
+                    {
+                        dataBuffer.Enqueue(bufferArray[i]);
+                    }
+                    return null;
+                }
+
+                // 提取完整的数据包
+                byte[] packet = new byte[PACKET_SIZE];
+                for (int i = 0; i < PACKET_SIZE; i++)
+                {
+                    packet[i] = bufferArray[packetStart + i];
+                }
+
+                // 移除已处理的数据（包括数据包之前的所有数据）
+                for (int i = 0; i < packetStart + PACKET_SIZE; i++)
+                {
+                    dataBuffer.Dequeue();
+                }
+
+                return packet;
+            }
+        }
+
+        private bool IsValidTail(byte[] buffer, int startIndex)
+        {
+            if (startIndex + 3 >= buffer.Length)
+                return false;
+
+            return buffer[startIndex] == TAIL_BYTE1 &&
+                   buffer[startIndex + 1] == TAIL_BYTE2 &&
+                   buffer[startIndex + 2] == TAIL_BYTE3 &&
+                   buffer[startIndex + 3] == TAIL_BYTE4;
+        }
+
+        private void ProcessPacket(byte[] packet)
+        {
+            try
+            {
+                totalPacketsReceived++;
+
+                // 验证数据包完整性
+                if (packet.Length != PACKET_SIZE)
+                {
+                    invalidPacketsDropped++;
+                    Console.WriteLine($"数据包大小错误: {packet.Length} != {PACKET_SIZE}");
+                    return;
+                }
+
+                // 验证尾标识
+                if (!IsValidTail(packet, PACKET_SIZE - 4))
+                {
+                    invalidPacketsDropped++;
+                    Console.WriteLine($"数据包尾标识无效: {packet[PACKET_SIZE - 4]:X2} {packet[PACKET_SIZE - 3]:X2} {packet[PACKET_SIZE - 2]:X2} {packet[PACKET_SIZE - 1]:X2}");
+                    return;
+                }
+
+                // 解析数据
+                float goalPos = BitConverter.ToSingle(packet, 0);
+                float motorPos = BitConverter.ToSingle(packet, 4);
+                float pidOutput = BitConverter.ToSingle(packet, 8);
+                float positionError = BitConverter.ToSingle(packet, 12);
+
+                validPacketsProcessed++;
+
+                // 在UI线程中更新显示和图表
+                if (this != null && !this.IsDisposed && this.IsHandleCreated)
+                {
+                    try
+                    {
+                        this.BeginInvoke(new Action(() =>
+                        {
+                            UpdateUIWithPacket(goalPos, motorPos, pidOutput, positionError);
+                        }));
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        // 窗体已关闭，忽略异常
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                invalidPacketsDropped++;
+                Console.WriteLine($"处理数据包时出错: {ex.Message}");
+            }
+        }
+
+        private void UpdateUIWithPacket(float goalPos, float motorPos, float pidOutput, float positionError)
+        {
+            try
+            {
+                // 将UI更新操作加入队列，使用节流机制
+                lock (uiQueueLock)
+                {
+                    uiUpdateQueue.Enqueue(() =>
+                    {
+                        try
+                        {
+                            // 更新richTextBox1显示（减少显示频率）
+                            if (richTextBox1 != null && !richTextBox1.IsDisposed)
+                            {
+                                // 只在每uiUpdateFrequency个数据包显示一次详细信息
+                                if (validPacketsProcessed % uiUpdateFrequency == 0)
+                                {
+                                    richTextBox1.AppendText($"接收时间: {DateTime.Now:HH:mm:ss.fff}\n");
+                                    richTextBox1.AppendText($"目标位置: {goalPos:F3}\n");
+                                    richTextBox1.AppendText($"电机位置: {motorPos:F3}\n");
+                                    richTextBox1.AppendText($"PID输出: {pidOutput:F3}\n");
+                                    richTextBox1.AppendText($"位置误差: {positionError:F3}\n");
+                                    richTextBox1.AppendText($"统计: 总包数={totalPacketsReceived}, 有效={validPacketsProcessed}, 丢弃={invalidPacketsDropped}, 溢出={bufferOverflowCount}\n");
+                                    richTextBox1.AppendText("------------------------\n");
+                                    richTextBox1.ScrollToCaret();
+                                }
+                                else if (validPacketsProcessed % statusUpdateFrequency == 0)
+                                {
+                                    // 每statusUpdateFrequency个数据包显示一次简单状态
+                                    richTextBox1.AppendText($"数据接收中... 有效包数: {validPacketsProcessed}\n");
+                                    richTextBox1.ScrollToCaret();
+                                }
+                            }
+
+                            // 更新图表（每个数据包都更新）
+                            draw(goalPos, motorPos, pidOutput, positionError);
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"UI更新错误: {ex.Message}");
+                        }
+                    });
+
+                    // 如果还没有安排UI更新，则安排一个
+                    if (!isUiUpdateScheduled)
+                    {
+                        ScheduleUiUpdate();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"UI更新错误: {ex.Message}");
+            }
+        }
+
+        private void ScheduleUiUpdate()
+        {
+            if (this != null && !this.IsDisposed && this.IsHandleCreated)
+            {
+                try
+                {
+                    this.BeginInvoke(new Action(() =>
+                    {
+                        lock (uiQueueLock)
+                        {
+                            isUiUpdateScheduled = false;
+                        }
+                        ProcessUiUpdateQueue();
+                    }));
+                }
+                catch (ObjectDisposedException)
+                {
+                    // 窗体已关闭，忽略异常
+                }
+            }
+        }
+
+        private void ProcessUiUpdateQueue()
+        {
+            try
+            {
+                lock (uiQueueLock)
+                {
+                    // 处理队列中的所有UI更新操作
+                    while (uiUpdateQueue.Count > 0)
+                    {
+                        Action updateAction = uiUpdateQueue.Dequeue();
+                        try
+                        {
+                            updateAction();
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"处理UI更新操作时出错: {ex.Message}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"处理UI更新队列时出错: {ex.Message}");
+            }
+        }
+
+        private void UiUpdateTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                // 定期处理UI更新队列
+                ProcessUiUpdateQueue();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"UI更新定时器错误: {ex.Message}");
+            }
+        }
+
+        // 获取统计信息的方法
+        public string GetStatistics()
+        {
+            return $"总接收包数: {totalPacketsReceived}, 有效包数: {validPacketsProcessed}, 丢弃包数: {invalidPacketsDropped}, 缓冲区溢出: {bufferOverflowCount}";
+        }
+
+        // 重置统计信息的方法
+        public void ResetStatistics()
+        {
+            totalPacketsReceived = 0;
+            validPacketsProcessed = 0;
+            invalidPacketsDropped = 0;
+            bufferOverflowCount = 0;
+        }
+
+        // 配置UI更新频率的方法
+        public void SetUiUpdateFrequency(int uiFreq, int chartFreq, int statusFreq)
+        {
+            uiUpdateFrequency = Math.Max(1, uiFreq);
+            chartUpdateFrequency = Math.Max(1, chartFreq);
+            statusUpdateFrequency = Math.Max(1, statusFreq);
+            
+            Console.WriteLine($"UI更新频率已调整: UI={uiUpdateFrequency}, 图表={chartUpdateFrequency}, 状态={statusUpdateFrequency}");
+        }
+
+        // 获取当前UI更新频率的方法
+        public string GetUiUpdateFrequency()
+        {
+            return $"UI更新频率: UI={uiUpdateFrequency}, 图表={chartUpdateFrequency}, 状态={statusUpdateFrequency}";
+        }
+
         // 确保Legend设置一致性的方法
         private void EnsureLegendConsistency()
         {
             if (myPane?.Legend == null) return;
-            
+
             // 设置Legend基本属性
             myPane.Legend.IsVisible = true;
             myPane.Legend.IsHStack = false; // 保持垂直排列
             myPane.Legend.IsReverse = false; // 保持正常顺序
-            
+
             // 确保所有Legend项都可见
             foreach (CurveItem curve in myPane.CurveList)
             {
@@ -121,7 +467,7 @@ namespace MotorControl6h39
                 }
             }
         }
-        
+
         // 添加曲线的辅助方法
         private LineItem AddCurveWithSettings(string label, PointPairList points, Color color, SymbolType symbolType)
         {
@@ -152,7 +498,7 @@ namespace MotorControl6h39
             {
                 Console.WriteLine($"ComboBox初始化错误: {exception.Message}");
             }
-            
+
             try
             {
                 if (cbRate != null && cbRate.Items.Count > 3)
@@ -176,12 +522,12 @@ namespace MotorControl6h39
             {
                 Console.WriteLine($"控件初始化错误: {ex.Message}");
             }
-            
+
             if (btdisc != null)
             {
                 btdisc.Enabled = false;
             }
-            
+
             if (P != null)
             {
                 P.Close();
@@ -191,7 +537,7 @@ namespace MotorControl6h39
             try
             {
                 Console.WriteLine("开始初始化图表...");
-                
+
                 if (zedGraphControl1 != null)
                 {
                     Console.WriteLine("zedGraphControl1 存在");
@@ -202,21 +548,21 @@ namespace MotorControl6h39
                         myPane.Title.Text = "电机控制";
                         myPane.XAxis.Title.Text = "时间(s)";
                         myPane.YAxis.Title.Text = "位置(mm)";
-                        
+
                         // 设置坐标轴范围
                         myPane.XAxis.Scale.Min = 0;
                         myPane.XAxis.Scale.Max = 10;  // 显示最近10秒的数据
                         myPane.YAxis.Scale.Min = -100;
                         myPane.YAxis.Scale.Max = 100;  // 根据实际数据范围调整
-                        
+
                         // 初始化数据点列表和曲线
                         listPointsGoal = new PointPairList();
                         listPointsMotor = new PointPairList();
                         listPointsPid = new PointPairList();
                         listPointsError = new PointPairList();
-                        
+
                         Console.WriteLine("数据点列表初始化完成");
-                        
+
                         // 添加四条曲线，使用不同颜色
                         myCurveGoal = AddCurveWithSettings("目标位置", listPointsGoal, Color.Blue, SymbolType.Circle);
                         if (myCurveGoal != null)
@@ -227,7 +573,7 @@ namespace MotorControl6h39
                         {
                             Console.WriteLine("目标曲线添加失败！");
                         }
-                        
+
                         myCurveMotor = AddCurveWithSettings("电机位置", listPointsMotor, Color.Red, SymbolType.Square);
                         if (myCurveMotor != null)
                         {
@@ -237,7 +583,7 @@ namespace MotorControl6h39
                         {
                             Console.WriteLine("电机曲线添加失败！");
                         }
-                        
+
                         myCurvePid = AddCurveWithSettings("PID输出", listPointsPid, Color.Orange, SymbolType.Diamond);
                         if (myCurvePid != null)
                         {
@@ -247,7 +593,7 @@ namespace MotorControl6h39
                         {
                             Console.WriteLine("PID曲线添加失败！");
                         }
-                        
+
                         myCurveError = AddCurveWithSettings("位置误差", listPointsError, Color.Green, SymbolType.Triangle);
                         if (myCurveError != null)
                         {
@@ -257,7 +603,7 @@ namespace MotorControl6h39
                         {
                             Console.WriteLine("误差曲线添加失败！");
                         }
-                        
+
                         // 确保图例可见
                         myPane.Legend.IsVisible = true;
                         myPane.Legend.Position = LegendPos.Top; // 设置图例位置在顶部
@@ -270,19 +616,19 @@ namespace MotorControl6h39
                         myPane.Legend.IsHStack = false; // 确保Legend项垂直排列
                         myPane.Legend.IsReverse = false; // 正常顺序显示
                         Console.WriteLine("图例设置为可见");
-                        
+
                         // 确保Legend设置一致性
                         EnsureLegendConsistency();
-                        
+
                         // 初始化时间戳
                         tickStart = Environment.TickCount;
-                        
+
                         // 强制刷新图表
                         Console.WriteLine("开始初始图表刷新...");
                         zedGraphControl1.AxisChange();
                         zedGraphControl1.Invalidate();
                         Console.WriteLine("初始图表刷新完成");
-                        
+
                         // 添加图表点击事件处理
                         zedGraphControl1.MouseClick += new MouseEventHandler(zedGraphControl1_MouseClick);
                         Console.WriteLine("图表点击事件已添加");
@@ -302,7 +648,7 @@ namespace MotorControl6h39
                 Console.WriteLine($"图表初始化错误: {ex.Message}");
                 Console.WriteLine($"错误堆栈: {ex.StackTrace}");
             }
-            
+
             if (timer1 != null)
             {
                 timer1.Interval = 10;
@@ -320,7 +666,7 @@ namespace MotorControl6h39
             {
                 Console.WriteLine($"窗体大小调整错误: {ex.Message}");
             }
-            
+
             // 初始化伯德图控件
             try
             {
@@ -335,7 +681,7 @@ namespace MotorControl6h39
                         bodePane.YAxis.Title.Text = "幅值 (dB)";
                         bodePane.Y2Axis.Title.Text = "相位 (度)";
                         bodePane.Y2Axis.IsVisible = true;
-                        
+
                         // 设置坐标轴范围
                         bodePane.XAxis.Type = AxisType.Log;
                         bodePane.XAxis.Scale.Min = 0.1;
@@ -344,16 +690,16 @@ namespace MotorControl6h39
                         bodePane.YAxis.Scale.Max = 20;
                         bodePane.Y2Axis.Scale.Min = -180;
                         bodePane.Y2Axis.Scale.Max = 180;
-                        
+
                         // 添加网格
                         bodePane.XAxis.MajorGrid.IsVisible = true;
                         bodePane.YAxis.MajorGrid.IsVisible = true;
                         bodePane.Y2Axis.MajorGrid.IsVisible = true;
-                        
+
                         // 设置图例
                         bodePane.Legend.IsVisible = true;
                         bodePane.Legend.Position = LegendPos.Top;
-                        
+
                         Console.WriteLine("伯德图控件初始化完成");
                     }
                     else
@@ -436,7 +782,7 @@ namespace MotorControl6h39
                 // 读取所有可用数据
                 byte[] buffer = new byte[P.BytesToRead];
                 int bytesRead = P.Read(buffer, 0, buffer.Length);
-                
+
                 // 检查是否收到SWEEP_DONE信号
                 string receivedText = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                 if (receivedText.Contains("SWEEP_DONE"))
@@ -450,123 +796,41 @@ namespace MotorControl6h39
                     }
                     return; // 不再处理后续数据
                 }
-                
-                // 使用 Invoke 确保在 UI 线程中更新控件
-                if (this != null && !this.IsDisposed)
+
+                // 将数据添加到FIFO队列
+                lock (bufferLock)
                 {
-                    this.Invoke(new Action(() =>
+                    // 检查缓冲区大小，防止内存溢出
+                    if (dataBuffer.Count + bytesRead > MAX_BUFFER_SIZE)
                     {
-                        try
+                        bufferOverflowCount++;
+                        Console.WriteLine($"缓冲区溢出，丢弃 {bytesRead} 字节数据");
+                        
+                        // 丢弃最旧的数据，为新数据腾出空间
+                        int bytesToRemove = dataBuffer.Count + bytesRead - MAX_BUFFER_SIZE + 1000;
+                        for (int i = 0; i < bytesToRemove && dataBuffer.Count > 0; i++)
                         {
-                            // 确保图表已初始化
-                            if (myPane == null && zedGraphControl1 != null)
-                            {
-                                Console.WriteLine("重新初始化图表...");
-                                myPane = zedGraphControl1.GraphPane;
-                                if (myPane != null)
-                                {
-                                    myPane.Title.Text = "电机控制";
-                                    myPane.XAxis.Title.Text = "时间(s)";
-                                    myPane.YAxis.Title.Text = "位置(mm)";
-                                    
-                                    // 设置坐标轴范围
-                                    myPane.XAxis.Scale.Min = 0;
-                                    myPane.XAxis.Scale.Max = 10;
-                                    myPane.YAxis.Scale.Min = -100;
-                                    myPane.YAxis.Scale.Max = 100;
-                                    
-                                    // 确保曲线已添加
-                                    if (myCurveGoal == null && listPointsGoal != null)
-                                    {
-                                        myCurveGoal = AddCurveWithSettings("目标位置", listPointsGoal, Color.Blue, SymbolType.Circle);
-                                    }
-                                    
-                                    if (myCurveMotor == null && listPointsMotor != null)
-                                    {
-                                        myCurveMotor = AddCurveWithSettings("电机位置", listPointsMotor, Color.Red, SymbolType.Square);
-                                    }
-                                    
-                                    if (myCurveError == null && listPointsError != null)
-                                    {
-                                        myCurveError = AddCurveWithSettings("位置误差", listPointsError, Color.Green, SymbolType.Triangle);
-                                    }
-                                    
-                                    Console.WriteLine("图表重新初始化完成");
-                                    
-                                    // 确保Legend设置一致性
-                                    EnsureLegendConsistency();
-                                }
-                            }
-                            
-                            if (richTextBox1 != null)
-                            {
-                                richTextBox1.AppendText($"接收时间: {DateTime.Now:HH:mm:ss.fff}\n");
-                                richTextBox1.AppendText($"接收字节数: {bytesRead}\n");
-                            }
-                            
-                            // 如果数据长度是20字节（4个float + 4字节尾标识）
-                            if (bytesRead == 20)
-                            {
-                                try
-                                {
-                                    // 解析4个float数据
-                                    float goalPos = BitConverter.ToSingle(buffer, 0);      // 目标位置
-                                    float motorPos = BitConverter.ToSingle(buffer, 4);     // 电机位置
-                                    float pidOutput = BitConverter.ToSingle(buffer, 8);    // PID输出
-                                    float positionError = BitConverter.ToSingle(buffer, 12); // 位置误差
-                                    
-                                    // 检查尾标识
-                                    bool validTail = (buffer[16] == 0x00 && buffer[17] == 0x00 && 
-                                                    buffer[18] == 0x80 && buffer[19] == 0x7f);
-                                    
-                                    if (richTextBox1 != null)
-                                    {
-                                        richTextBox1.AppendText($"目标位置: {goalPos:F3}\n");
-                                        richTextBox1.AppendText($"电机位置: {motorPos:F3}\n");
-                                        richTextBox1.AppendText($"PID输出: {pidOutput:F3}\n");
-                                        richTextBox1.AppendText($"位置误差: {positionError:F3}\n");
-                                        richTextBox1.AppendText($"尾标识有效: {(validTail ? "是" : "否")}\n");
-                                    }
-                                    
-                                    // 更新图表，传入三个参数
-                                    draw(goalPos, motorPos, pidOutput, positionError);
-                                }
-                                catch (Exception parseEx)
-                                {
-                                    if (richTextBox1 != null)
-                                    {
-                                        richTextBox1.AppendText($"数据解析错误: {parseEx.Message}\n");
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                // 显示原始字节数据
-                                string hexString = BitConverter.ToString(buffer, 0, bytesRead).Replace("-", " ");
-                                if (richTextBox1 != null)
-                                {
-                                    richTextBox1.AppendText($"原始数据: {hexString}\n");
-                                }
-                            }
-                            
-                            if (richTextBox1 != null)
-                            {
-                                richTextBox1.AppendText("------------------------\n");
-                                // 自动滚动到底部
-                                richTextBox1.ScrollToCaret();
-                            }
+                            dataBuffer.Dequeue();
                         }
-                        catch (Exception invokeEx)
-                        {
-                            Console.WriteLine($"UI更新错误: {invokeEx.Message}");
-                        }
-                    }));
+                    }
+
+                    // 将新数据添加到队列
+                    for (int i = 0; i < bytesRead; i++)
+                    {
+                        dataBuffer.Enqueue(buffer[i]);
+                    }
+                }
+
+                // 如果数据处理线程未启动，则启动它
+                if (!isProcessing)
+                {
+                    StartDataProcessing();
                 }
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Error in DataReceive: {ex.Message}");
-                
+
                 // 在 richTextBox1 中显示错误信息
                 if (this != null && !this.IsDisposed)
                 {
@@ -620,36 +884,36 @@ namespace MotorControl6h39
                             myPane.Title.Text = "电机控制";
                             myPane.XAxis.Title.Text = "时间(s)";
                             myPane.YAxis.Title.Text = "位置(mm)";
-                            
+
                             // 设置坐标轴范围
                             myPane.XAxis.Scale.Min = 0;
                             myPane.XAxis.Scale.Max = 10;
                             myPane.YAxis.Scale.Min = -100;
                             myPane.YAxis.Scale.Max = 100;
-                            
+
                             // 确保曲线已添加
                             if (myCurveGoal == null && listPointsGoal != null)
                             {
                                 myCurveGoal = AddCurveWithSettings("目标位置", listPointsGoal, Color.Blue, SymbolType.Circle);
                             }
-                            
+
                             if (myCurveMotor == null && listPointsMotor != null)
                             {
                                 myCurveMotor = AddCurveWithSettings("电机位置", listPointsMotor, Color.Red, SymbolType.Square);
                             }
-                            
+
                             if (myCurvePid == null && listPointsPid != null)
                             {
                                 myCurvePid = AddCurveWithSettings("PID输出", listPointsPid, Color.Orange, SymbolType.Diamond);
                             }
-                            
+
                             if (myCurveError == null && listPointsError != null)
                             {
                                 myCurveError = AddCurveWithSettings("位置误差", listPointsError, Color.Green, SymbolType.Triangle);
                             }
-                            
+
                             Console.WriteLine("图表重新初始化完成");
-                            
+
                             // 确保Legend设置一致性
                             EnsureLegendConsistency();
                         }
@@ -666,13 +930,13 @@ namespace MotorControl6h39
 
                 // 计算时间（毫秒转换为秒）
                 double time = (Environment.TickCount - tickStart) / 1000.0;
-                
+
                 // 添加新的数据点到四条曲线
                 listPointsGoal.Add(time, goalPos);
                 listPointsMotor.Add(time, motorPos);
                 listPointsPid.Add(time, pidOutput);
                 listPointsError.Add(time, positionError);
-                
+
                 // 只有在开始记录后才将数据存储到二维数组中（线程安全）
                 if (isRecordingData)
                 {
@@ -683,7 +947,7 @@ namespace MotorControl6h39
                         positionData.Add(new float[] { goalPos, motorPos, (float)currentTime, pidOutput });
                     }
                 }
-                
+
                 // 如果数据点超过显示范围，移除旧的数据点
                 while (listPointsGoal.Count > 0 && listPointsGoal[0].X < time - 10)
                 {
@@ -701,17 +965,17 @@ namespace MotorControl6h39
                 {
                     listPointsError.RemoveAt(0);
                 }
-                
+
                 // 更新X轴范围
                 if (myPane.XAxis != null && myPane.XAxis.Scale != null)
                 {
                     myPane.XAxis.Scale.Min = time - 10;
                     myPane.XAxis.Scale.Max = time;
                 }
-                
+
                 // 更新Y轴范围（考虑所有数据）
                 double minY = 0, maxY = 0;
-                
+
                 if (listPointsGoal.Count > 0 || listPointsMotor.Count > 0 || listPointsPid.Count > 0 || listPointsError.Count > 0)
                 {
                     minY = Math.Min(
@@ -741,25 +1005,29 @@ namespace MotorControl6h39
                     minY = -10;
                     maxY = 10;
                 }
-                
+
                 double range = maxY - minY;
                 if (range < 1) range = 1; // 避免范围太小
-                
+
                 if (myPane.YAxis != null && myPane.YAxis.Scale != null)
                 {
                     myPane.YAxis.Scale.Min = minY - range * 0.1;
                     myPane.YAxis.Scale.Max = maxY + range * 0.1;
                 }
-                
-                // 刷新显示
-                if (zedGraphControl1 != null)
+
+                // 节流图表刷新 - 只在每chartUpdateFrequency个数据包刷新一次
+                if (validPacketsProcessed % chartUpdateFrequency == 0)
                 {
-                    // 确保Legend设置保持不变
-                    EnsureLegendConsistency();
-                    
-                    zedGraphControl1.AxisChange();
-                    zedGraphControl1.Invalidate();
-                    zedGraphControl1.Refresh();
+                    // 刷新显示
+                    if (zedGraphControl1 != null)
+                    {
+                        // 确保Legend设置保持不变
+                        EnsureLegendConsistency();
+
+                        zedGraphControl1.AxisChange();
+                        zedGraphControl1.Invalidate();
+                        zedGraphControl1.Refresh();
+                    }
                 }
             }
             catch (Exception ex)
@@ -779,7 +1047,7 @@ namespace MotorControl6h39
                 btdisc.Enabled = false;
             }
             string selectedPort = cbCom.SelectedItem?.ToString();
-            P.PortName = selectedPort; 
+            P.PortName = selectedPort;
         }
 
         private void cbRate_SelectedIndexChanged(object sender, EventArgs e)
@@ -859,7 +1127,7 @@ namespace MotorControl6h39
                         MessageBox.Show("请先选择串口");
                         return;
                     }
-                    
+
                     // 设置串口参数
                     if (cbRate != null && !string.IsNullOrEmpty(cbRate.Text))
                     {
@@ -869,7 +1137,7 @@ namespace MotorControl6h39
                     {
                         P.DataBits = Convert.ToInt32(cbBits.Text);
                     }
-                    
+
                     if (cbParity != null && cbParity.SelectedItem != null)
                     {
                         switch (cbParity.SelectedItem.ToString())
@@ -885,7 +1153,7 @@ namespace MotorControl6h39
                                 break;
                         }
                     }
-                    
+
                     if (cbBit != null && cbBit.SelectedItem != null)
                     {
                         switch (cbBit.SelectedItem.ToString())
@@ -901,7 +1169,7 @@ namespace MotorControl6h39
                                 break;
                         }
                     }
-                    
+
                     P.Open();
                     if (btconnect != null)
                     {
@@ -911,10 +1179,29 @@ namespace MotorControl6h39
                     {
                         btdisc.Enabled = true;
                     }
-                    
+
                     // 重新添加串口事件处理程序
                     P.DataReceived += new SerialDataReceivedEventHandler(DataReceive);
-                    
+
+                    // 清空FIFO缓冲区并重置统计信息
+                    lock (bufferLock)
+                    {
+                        dataBuffer.Clear();
+                    }
+                    ResetStatistics();
+
+                    // 启动FIFO数据处理线程
+                    StartDataProcessing();
+
+                    // 初始化UI更新定时器
+                    if (uiUpdateTimer == null)
+                    {
+                        uiUpdateTimer = new System.Windows.Forms.Timer();
+                        uiUpdateTimer.Interval = UI_UPDATE_INTERVAL;
+                        uiUpdateTimer.Tick += UiUpdateTimer_Tick;
+                    }
+                    uiUpdateTimer.Start();
+
                     if (richTextBox1 != null)
                     {
                         richTextBox1.AppendText($"串口 {P.PortName} 连接成功\n");
@@ -922,6 +1209,8 @@ namespace MotorControl6h39
                         richTextBox1.AppendText($"数据位: {P.DataBits}\n");
                         richTextBox1.AppendText($"校验位: {P.Parity}\n");
                         richTextBox1.AppendText($"停止位: {P.StopBits}\n");
+                        richTextBox1.AppendText("FIFO数据处理已启动\n");
+                        richTextBox1.AppendText("UI更新节流已启用\n");
                         richTextBox1.AppendText("------------------------\n");
                     }
                 }
@@ -935,22 +1224,44 @@ namespace MotorControl6h39
 
         private void btdisc_Click(object sender, EventArgs e)
         {
+            // 停止FIFO数据处理线程
+            StopDataProcessing();
+
+            // 停止UI更新定时器
+            if (uiUpdateTimer != null)
+            {
+                uiUpdateTimer.Stop();
+            }
+
             // 移除串口事件处理程序
             P.DataReceived -= new SerialDataReceivedEventHandler(DataReceive);
-            
+
             // 关闭串口
             P.Close();
             btconnect.Enabled = true;
             btdisc.Enabled = false;
-            
-            // 只清空串口输出显示，不清空图表数据
+
+            // 清空FIFO缓冲区和UI更新队列
+            lock (bufferLock)
+            {
+                dataBuffer.Clear();
+            }
+            lock (uiQueueLock)
+            {
+                uiUpdateQueue.Clear();
+            }
+
+            // 显示统计信息
+            string stats = GetStatistics();
             if (richTextBox1 != null)
             {
                 richTextBox1.AppendText("串口已断开连接\n");
+                richTextBox1.AppendText($"数据处理统计: {stats}\n");
                 richTextBox1.AppendText("------------------------\n");
             }
-            
+
             Console.WriteLine("串口已断开连接");
+            Console.WriteLine($"数据处理统计: {stats}");
         }
 
 
@@ -1028,18 +1339,18 @@ namespace MotorControl6h39
                 {
                     currentData = new List<float[]>(positionData);
                 }
-                
+
                 if (currentData.Count == 0)
                 {
                     return; // 没有数据，直接返回
                 }
-                
+
                 // 创建保存文件对话框
                 SaveFileDialog saveDialog = new SaveFileDialog();
                 saveDialog.Filter = "CSV文件 (*.csv)|*.csv|文本文件 (*.txt)|*.txt";
                 saveDialog.Title = "保存位置数据";
                 saveDialog.FileName = $"位置数据_{DateTime.Now:yyyyMMdd_HHmmss}";
-                
+
                 if (saveDialog.ShowDialog() == DialogResult.OK)
                 {
                     try
@@ -1048,19 +1359,19 @@ namespace MotorControl6h39
                         {
                             // 写入表头
                             writer.WriteLine("序号,目标位置,电机位置,时间(秒),PID输出");
-                            
+
                             // 写入数据
                             for (int i = 0; i < currentData.Count; i++)
                             {
                                 writer.WriteLine($"{i + 1},{currentData[i][0]:F6},{currentData[i][1]:F6},{currentData[i][2]:F6},{currentData[i][3]:F6}");
                             }
                         }
-                        
+
                         // 保存成功后清空数组
                         ClearPositionData();
                         isRecordingData = false; // 停止记录
                         StopButtonAnimation(); // 停止按钮动画
-                        
+
                         Console.WriteLine($"数据已成功保存到: {saveDialog.FileName}");
                     }
                     catch (Exception ex)
@@ -1090,7 +1401,7 @@ namespace MotorControl6h39
                 {
                     currentData = new List<float[]>(positionData);
                 }
-                
+
                 if (currentData.Count == 0)
                 {
                     // 开始记录数据
@@ -1099,7 +1410,7 @@ namespace MotorControl6h39
                     StartButtonAnimation(); // 开始按钮动画
                     return;
                 }
-                
+
                 // 直接清空数据并重新开始记录
                 ClearPositionData();
                 tickStart = Environment.TickCount;  // 重置时间戳
@@ -1140,7 +1451,7 @@ namespace MotorControl6h39
             try
             {
                 if (cbCom == null) return;
-                
+
                 // 保存当前选中的项
                 string currentSelection = cbCom.SelectedItem?.ToString();
 
@@ -1174,10 +1485,35 @@ namespace MotorControl6h39
                 animationTimer.Dispose();
                 animationTimer = null;
             }
-            
+
+            // 停止并释放UI更新定时器
+            if (uiUpdateTimer != null)
+            {
+                uiUpdateTimer.Stop();
+                uiUpdateTimer.Dispose();
+                uiUpdateTimer = null;
+            }
+
             // 停止并释放UDP接收器
             StopUdpReceiver();
-            
+
+            // 停止FIFO数据处理线程
+            StopDataProcessing();
+
+            // 关闭串口连接
+            if (P != null && P.IsOpen)
+            {
+                try
+                {
+                    P.DataReceived -= new SerialDataReceivedEventHandler(DataReceive);
+                    P.Close();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"关闭串口时出错: {ex.Message}");
+                }
+            }
+
             base.OnFormClosing(e);
         }
 
@@ -1189,24 +1525,24 @@ namespace MotorControl6h39
                 {
                     return;
                 }
-                
+
                 // 获取textBox1的输入值
                 if (string.IsNullOrEmpty(textBox1.Text))
                 {
                     Console.WriteLine("请输入目标位置");
                     return;
                 }
-                
+
                 // 尝试将输入转换为数字
                 if (float.TryParse(textBox1.Text, out float targetPosition))
                 {
                     // 构造移动命令
                     string moveCommand = $"move to {targetPosition}";
-                    
+
                     // 发送命令
                     byte[] commandBytes = Encoding.UTF8.GetBytes(moveCommand + "\r\n");
                     P.Write(commandBytes, 0, commandBytes.Length);
-                    
+
                     Console.WriteLine($"发送移动命令: {moveCommand}");
                 }
                 else
@@ -1248,18 +1584,18 @@ namespace MotorControl6h39
                     MessageBox.Show("请先连接串口");
                     return;
                 }
-                
+
                 // 获取四个输入值（需要添加第4个输入框）
-                if (string.IsNullOrEmpty(textBox13.Text) || string.IsNullOrEmpty(textBox14.Text) || 
+                if (string.IsNullOrEmpty(textBox13.Text) || string.IsNullOrEmpty(textBox14.Text) ||
                     string.IsNullOrEmpty(textBox16.Text) || string.IsNullOrEmpty(textBox15.Text))
                 {
                     MessageBox.Show("请填写所有扫频参数");
                     return;
                 }
-                
+
                 // 尝试将输入转换为数字
-                if (float.TryParse(textBox15.Text, out float param1) && 
-                    float.TryParse(textBox13.Text, out float param2) && 
+                if (float.TryParse(textBox15.Text, out float param1) &&
+                    float.TryParse(textBox13.Text, out float param2) &&
                     float.TryParse(textBox14.Text, out float param3) &&
                     float.TryParse(textBox16.Text, out float param4))
                 {
@@ -1267,7 +1603,7 @@ namespace MotorControl6h39
                     ClearPositionData();
                     tickStart = Environment.TickCount;  // 重置时间戳
                     isRecordingData = true;  // 开始记录数据
-                    
+
                     // 在richTextBox1中显示扫频开始信息
                     if (richTextBox1 != null)
                     {
@@ -1277,15 +1613,15 @@ namespace MotorControl6h39
                         richTextBox1.AppendText("------------------------\n");
                         richTextBox1.ScrollToCaret();
                     }
-                    
+
                     // 构造频率移动命令 - 添加中心点参数
                     // 格式：freq move amplitude start_freq end_freq center_point
                     string freqMoveCommand = $"freq move {param2:F3} {param3:F3} {param4:F3} {param1:F3}";
-                    
+
                     // 发送命令
                     byte[] commandBytes = Encoding.UTF8.GetBytes(freqMoveCommand + "\r\n");
                     P.Write(commandBytes, 0, commandBytes.Length);
-                           
+
                     // 清空串口缓冲区，确保命令完整发送
                     P.DiscardInBuffer();
                     P.DiscardOutBuffer();
@@ -1307,7 +1643,7 @@ namespace MotorControl6h39
             try
             {
                 if (myPane?.Legend == null || !myPane.Legend.IsVisible) return;
-                
+
                 // 获取Legend区域
                 RectangleF legendRect = myPane.Legend.Rect;
                 if (legendRect.Width <= 0 || legendRect.Height <= 0)
@@ -1318,7 +1654,7 @@ namespace MotorControl6h39
                     legendRect = myPane.Legend.Rect;
                     if (legendRect.Width <= 0 || legendRect.Height <= 0) return;
                 }
-                
+
                 // 检查是否点击在Legend区域内（包含容差）
                 const float tolerance = 10.0f;
                 if (e.X < legendRect.X - tolerance || e.X > legendRect.X + legendRect.Width + tolerance ||
@@ -1326,20 +1662,20 @@ namespace MotorControl6h39
                 {
                     return; // 点击不在Legend区域内
                 }
-                
+
                 // 计算点击的Legend项索引
                 int itemCount = myPane.CurveList.Count;
                 if (itemCount <= 0) return;
-                
+
                 float clickRatio = (e.Y - legendRect.Y) / legendRect.Height;
                 int clickedIndex = Math.Max(0, Math.Min((int)(clickRatio * itemCount), itemCount - 1));
-                
+
                 // 切换对应曲线的可见性
                 CurveItem clickedCurve = myPane.CurveList[clickedIndex];
                 if (clickedCurve != null)
                 {
                     clickedCurve.IsVisible = !clickedCurve.IsVisible;
-                    
+
                     // 确保Legend设置一致性并刷新图表
                     EnsureLegendConsistency();
                     zedGraphControl1.AxisChange();
@@ -1362,7 +1698,7 @@ namespace MotorControl6h39
                 animationTimer.Interval = 500; // 500毫秒闪烁间隔
                 animationTimer.Tick += AnimationTimer_Tick;
             }
-            
+
             if (!animationTimer.Enabled)
             {
                 animationTimer.Start();
@@ -1394,7 +1730,7 @@ namespace MotorControl6h39
             {
                 animationTimer.Stop();
                 isButtonBlinking = false;
-                
+
                 // 恢复按钮原始颜色
                 if (button11 != null)
                 {
@@ -1403,7 +1739,7 @@ namespace MotorControl6h39
                 }
             }
         }
-        
+
         // 动画定时器事件
         private void AnimationTimer_Tick(object sender, EventArgs e)
         {
@@ -1427,7 +1763,7 @@ namespace MotorControl6h39
         {
 
         }
-        
+
         private void checkBox2_CheckedChanged(object sender, EventArgs e)
         {
             try
@@ -1435,11 +1771,11 @@ namespace MotorControl6h39
                 if (P != null && P.IsOpen)
                 {
                     string debugCommand = checkBox2.Checked ? "set debug 1" : "set debug 0";
-                    
+
                     // 发送调试命令
                     byte[] commandBytes = Encoding.UTF8.GetBytes(debugCommand + "\r\n");
                     P.Write(commandBytes, 0, commandBytes.Length);
-                    
+
                     Console.WriteLine($"发送调试命令: {debugCommand}");
                 }
                 else
@@ -1459,17 +1795,17 @@ namespace MotorControl6h39
             try
             {
                 if (isUdpReceiving) return;
-                
+
                 udpClient = new UdpClient(udpPort);
                 udpClient.Client.ReceiveTimeout = 1000; // 1秒超时
                 isUdpReceiving = true;
                 udpPacketCount = 0;
                 udpStartTime = DateTime.Now;
-                
+
                 udpReceiveThread = new Thread(UdpReceiveLoop);
                 udpReceiveThread.IsBackground = true;
                 udpReceiveThread.Start();
-                
+
                 // 在richTextBox1中显示启动信息
                 if (richTextBox1 != null)
                 {
@@ -1479,7 +1815,7 @@ namespace MotorControl6h39
                     richTextBox1.AppendText("------------------------\n");
                     richTextBox1.ScrollToCaret();
                 }
-                
+
                 Console.WriteLine($"UDP 接收测试");
                 Console.WriteLine($"监听端口 {udpPort}...");
                 Console.WriteLine($"期望数据格式: 4个float值 + 4字节尾标识");
@@ -1495,24 +1831,24 @@ namespace MotorControl6h39
                 }
             }
         }
-        
+
         private void StopUdpReceiver()
         {
             try
             {
                 isUdpReceiving = false;
-                
+
                 if (udpReceiveThread != null && udpReceiveThread.IsAlive)
                 {
                     udpReceiveThread.Join(1000); // 等待1秒
                 }
-                
+
                 if (udpClient != null)
                 {
                     udpClient.Close();
                     udpClient = null;
                 }
-                
+
                 string stopMsg = $"UDP接收器已停止，共收到 {udpPacketCount} 个数据包";
                 Console.WriteLine(stopMsg);
                 if (richTextBox1 != null)
@@ -1533,7 +1869,7 @@ namespace MotorControl6h39
                 }
             }
         }
-        
+
         private void UdpReceiveLoop()
         {
             try
@@ -1545,7 +1881,7 @@ namespace MotorControl6h39
                         IPEndPoint remoteEndPoint = new IPEndPoint(IPAddress.Any, 0);
                         byte[] data = udpClient.Receive(ref remoteEndPoint);
                         udpPacketCount++;
-                        
+
                         // 检查数据长度 (4个float + 4字节尾标识 = 20字节)
                         if (data != null && data.Length == 20)
                         {
@@ -1554,12 +1890,12 @@ namespace MotorControl6h39
                             float currentPos = BitConverter.ToSingle(data, 4);
                             float pidOutput = BitConverter.ToSingle(data, 8);
                             float positionError = BitConverter.ToSingle(data, 12);
-                            
+
                             // 检查尾标识
                             byte[] tail = new byte[4];
                             Array.Copy(data, 16, tail, 0, 4);
                             bool tailValid = (tail[0] == 0x00 && tail[1] == 0x00 && tail[2] == 0x80 && tail[3] == 0x7f);
-                            
+
                             // 在UI线程中更新richTextBox1
                             if (this != null && !this.IsDisposed && this.IsHandleCreated)
                             {
@@ -1574,6 +1910,7 @@ namespace MotorControl6h39
                                             richTextBox1.AppendText($"    当前位置: {currentPos:F6}\n");
                                             richTextBox1.AppendText($"    PID输出: {pidOutput:F6}\n");
                                             richTextBox1.AppendText($"    位置误差: {positionError:F6}\n");
+                                            richTextBox1.AppendText($"    尾标识: {BitConverter.ToString(tail).Replace("-", " ")} {(tailValid ? "✓" : "✗")}\n");
                                             richTextBox1.AppendText("------------------------\n");
                                             richTextBox1.ScrollToCaret();
                                         }
@@ -1585,58 +1922,31 @@ namespace MotorControl6h39
                                     break;
                                 }
                             }
-                            
-                            // 更新图表（在UI线程中）
-                            if (this != null && !this.IsDisposed && this.IsHandleCreated)
+
+                            // 只有尾标识有效时才更新图表
+                            if (tailValid)
                             {
-                                try
+                                // 更新图表（在UI线程中）
+                                if (this != null && !this.IsDisposed && this.IsHandleCreated)
                                 {
-                                    this.Invoke(new Action(() =>
+                                    try
                                     {
-                                        draw(goalPos, currentPos, pidOutput, positionError);
-                                    }));
-                                }
-                                catch (ObjectDisposedException)
-                                {
-                                    // 窗体已关闭，停止接收
-                                    break;
-                                }
-                            }
-                        }
-                        else if (data != null)
-                        {
-                            // 如果不是预期的二进制数据，尝试作为文本处理
-                            string displayText = "";
-                            try
-                            {
-                                string textData = Encoding.UTF8.GetString(data);
-                                displayText = $"[{udpPacketCount}] 收到来自 {remoteEndPoint}: {textData}";
-                            }
-                            catch
-                            {
-                                displayText = $"[{udpPacketCount}] 收到来自 {remoteEndPoint}: 二进制数据 ({data.Length} 字节)";
-                            }
-                            
-                            // 在UI线程中更新richTextBox1
-                            if (this != null && !this.IsDisposed && this.IsHandleCreated)
-                            {
-                                try
-                                {
-                                    this.Invoke(new Action(() =>
-                                    {
-                                        if (richTextBox1 != null && !richTextBox1.IsDisposed)
+                                        this.Invoke(new Action(() =>
                                         {
-                                            richTextBox1.AppendText($"{displayText}\n");
-                                            richTextBox1.AppendText("------------------------\n");
-                                            richTextBox1.ScrollToCaret();
-                                        }
-                                    }));
+                                            draw(goalPos, currentPos, pidOutput, positionError);
+                                        }));
+                                    }
+                                    catch (ObjectDisposedException)
+                                    {
+                                        // 窗体已关闭，停止接收
+                                        break;
+                                    }
                                 }
-                                catch (ObjectDisposedException)
-                                {
-                                    // 窗体已关闭，停止接收
-                                    break;
-                                }
+                            }
+                            else
+                            {
+                                // 尾标识无效，记录错误
+                                Console.WriteLine($"UDP数据包 {udpPacketCount} 尾标识无效: {BitConverter.ToString(tail).Replace("-", " ")}");
                             }
                         }
                     }
@@ -1648,7 +1958,7 @@ namespace MotorControl6h39
                     catch (Exception ex)
                     {
                         string errorMsg = $"UDP接收错误: {ex.Message}";
-                        
+
                         // 在UI线程中更新错误信息
                         if (this != null && !this.IsDisposed && this.IsHandleCreated)
                         {
@@ -1676,7 +1986,7 @@ namespace MotorControl6h39
             catch (Exception ex)
             {
                 string errorMsg = $"UDP接收循环错误: {ex.Message}";
-                
+
                 // 在UI线程中更新错误信息
                 if (this != null && !this.IsDisposed && this.IsHandleCreated)
                 {
@@ -1710,43 +2020,43 @@ namespace MotorControl6h39
                 {
                     currentData = new List<float[]>(positionData);
                 }
-                
+
                 if (currentData.Count == 0)
                 {
                     Console.WriteLine("没有数据可保存");
                     return;
                 }
-                
+
                 // 生成默认文件名
                 string defaultFileName = $"扫频数据_{DateTime.Now:yyyyMMdd_HHmmss}.csv";
                 string documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string fullPath = Path.Combine(documentsPath, "MotorControl", defaultFileName);
-                
+
                 // 确保目录存在
                 Directory.CreateDirectory(Path.GetDirectoryName(fullPath));
-                
+
                 using (StreamWriter writer = new StreamWriter(fullPath))
                 {
                     // 写入表头
                     writer.WriteLine("序号,目标位置,电机位置,时间(秒),PID输出");
-                    
+
                     // 写入数据
                     for (int i = 0; i < currentData.Count; i++)
                     {
                         writer.WriteLine($"{i + 1},{currentData[i][0]:F6},{currentData[i][1]:F6},{currentData[i][2]:F6},{currentData[i][3]:F6}");
                     }
                 }
-                
+
                 // 弹出对话框提示保存位置
                 string message = $"扫频测试数据保存成功！\n\n" +
                                $"保存位置：{fullPath}\n" +
                                $"数据点数：{currentData.Count}\n" +
                                $"文件大小：{new FileInfo(fullPath).Length / 1024.0:F1} KB\n\n" +
                                $"是否立即生成伯德图？";
-                
-                DialogResult result = MessageBox.Show(message, "数据保存成功", 
+
+                DialogResult result = MessageBox.Show(message, "数据保存成功",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Information);
-                
+
                 if (result == DialogResult.Yes)
                 {
                     if (this.InvokeRequired)
@@ -1783,16 +2093,16 @@ namespace MotorControl6h39
                         }
                     }
                 }
-                
+
                 // 清空数据
                 ClearPositionData();
-                
+
                 Console.WriteLine($"扫频数据已自动保存到: {fullPath}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"自动保存数据时出错: {ex.Message}");
-                MessageBox.Show($"自动保存数据时出错：{ex.Message}", 
+                MessageBox.Show($"自动保存数据时出错：{ex.Message}",
                     "保存错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1808,25 +2118,25 @@ namespace MotorControl6h39
                 {
                     currentData = new List<float[]>(positionData);
                 }
-                
+
                 if (currentData.Count == 0)
                 {
-                    // 如果没有数据，生成测试数据
-                    currentData = GenerateTestData();
+                    MessageBox.Show("没有数据可处理，请先记录数据", "提示", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
                 }
-                
+
                 // 生成伯德图并获取数据
                 List<double> frequencies, magnitudes, phases;
                 GenerateBodePlotWithReturn(currentData, out frequencies, out magnitudes, out phases);
-                
+
                 // 查找-3dB点
                 double freqAtMinus3dB = FindClosestFrequency(frequencies, magnitudes, -3);
                 // 查找-45度点
                 double freqAtMinus45Deg = FindClosestFrequency(frequencies, phases, -45);
-                
+
                 // 切换到伯德图tab
                 tabControl1.SelectedTab = tabPage3;
-                
+
                 if (richTextBoxBode != null)
                 {
                     richTextBoxBode.Clear();
@@ -1836,7 +2146,7 @@ namespace MotorControl6h39
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"生成伯德图时出错：{ex.Message}", 
+                MessageBox.Show($"生成伯德图时出错：{ex.Message}",
                     "错误", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
@@ -1973,235 +2283,6 @@ namespace MotorControl6h39
                 zedGraphControlBode.AxisChange();
                 zedGraphControlBode.Invalidate();
                 zedGraphControlBode.Refresh();
-                Console.WriteLine("伯德图生成完成");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"生成伯德图时出错: {ex.Message}");
-                throw;
-            }
-        }
-
-        // 生成测试数据的方法
-        private List<float[]> GenerateTestData()
-        {
-            List<float[]> testData = new List<float[]>();
-            double startTime = 0;
-            double timeStep = 0.01; // 10ms采样间隔
-            double startFreq = 0.1;
-            double endFreq = 5.0;
-            double totalTime = 10.0; // 10秒扫频
-            
-            for (int i = 0; i < 1000; i++)
-            {
-                double time = startTime + i * timeStep;
-                double timeRatio = time / totalTime;
-                double currentFreq = startFreq + timeRatio * (endFreq - startFreq);
-                
-                // 生成正弦输入信号
-                double amplitude = 1.0;
-                double inputSignal = amplitude * Math.Sin(2 * Math.PI * currentFreq * time);
-                
-                // 模拟系统响应（简单的低通滤波器）
-                double cutoffFreq = 2.0; // 2Hz截止频率
-                double transferFunction = 1.0 / Math.Sqrt(1 + Math.Pow(currentFreq / cutoffFreq, 2));
-                double phaseShift = -Math.Atan(currentFreq / cutoffFreq);
-                
-                double outputSignal = amplitude * transferFunction * Math.Sin(2 * Math.PI * currentFreq * time + phaseShift);
-                
-                // 添加一些噪声
-                Random rand = new Random();
-                double noise = (rand.NextDouble() - 0.5) * 0.1;
-                outputSignal += noise;
-                
-                testData.Add(new float[] { (float)inputSignal, (float)outputSignal, (float)time, 0.0f });
-            }
-            
-            return testData;
-        }
-
-        // 生成伯德图的方法
-        private void GenerateBodePlot(List<float[]> data)
-        {
-            try
-            {
-                Console.WriteLine("开始生成伯德图...");
-                
-                if (zedGraphControlBode == null)
-                {
-                    Console.WriteLine("zedGraphControlBode 为空！");
-                    MessageBox.Show("伯德图控件未初始化", "错误", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-                
-                // 获取图表面板
-                GraphPane bodePane = zedGraphControlBode.GraphPane;
-                if (bodePane == null)
-                {
-                    Console.WriteLine("bodePane 为空！");
-                    MessageBox.Show("伯德图面板未初始化", "错误", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Error);
-                    return;
-                }
-                
-                Console.WriteLine("伯德图控件和面板初始化成功");
-                
-                // 清空现有数据
-                bodePane.CurveList.Clear();
-                
-                // 设置图表标题和轴标签
-                bodePane.Title.Text = "伯德图 - 幅频特性和相频特性";
-                bodePane.XAxis.Title.Text = "频率 (Hz)";
-                bodePane.YAxis.Title.Text = "幅值 (dB)";
-                bodePane.Y2Axis.Title.Text = "相位 (度)";
-                
-                // 启用Y2轴
-                bodePane.Y2Axis.IsVisible = true;
-                bodePane.Y2Axis.Scale.Min = -180;
-                bodePane.Y2Axis.Scale.Max = 180;
-                
-                // 从扫频数据中提取频率信息
-                // 获取扫频参数（从UI控件中读取）
-                double startFreq = 0.1;
-                double endFreq = 5.0;
-                
-                if (textBox14 != null && float.TryParse(textBox14.Text, out float startFreqValue))
-                {
-                    startFreq = startFreqValue;
-                }
-                if (textBox16 != null && float.TryParse(textBox16.Text, out float endFreqValue))
-                {
-                    endFreq = endFreqValue;
-                }
-                
-                double totalTime = data[data.Count - 1][2] - data[0][2]; // 总时间
-                
-                // 创建频率数组
-                List<double> frequencies = new List<double>();
-                List<double> magnitudes = new List<double>();
-                List<double> phases = new List<double>();
-                
-                // 使用滑动窗口进行频率分析
-                int windowSize = Math.Min(100, data.Count / 10); // 窗口大小
-                if (windowSize < 10) windowSize = 10;
-                
-                for (int i = windowSize; i < data.Count - windowSize; i += windowSize / 2)
-                {
-                    // 计算当前频率（线性插值）
-                    double timeRatio = data[i][2] / totalTime;
-                    double currentFreq = startFreq + timeRatio * (endFreq - startFreq);
-                    
-                    // 计算窗口内的平均响应
-                    double sumInput = 0, sumOutput = 0;
-                    double sumInputSquared = 0, sumOutputSquared = 0;
-                    double sumCross = 0;
-                    
-                    for (int j = i - windowSize / 2; j < i + windowSize / 2 && j < data.Count; j++)
-                    {
-                        if (j >= 0)
-                        {
-                            double input = data[j][0]; // 目标位置（输入）
-                            double output = data[j][1]; // 电机位置（输出）
-                            
-                            sumInput += input;
-                            sumOutput += output;
-                            sumInputSquared += input * input;
-                            sumOutputSquared += output * output;
-                            sumCross += input * output;
-                        }
-                    }
-                    
-                    int actualWindowSize = Math.Min(windowSize, data.Count - (i - windowSize / 2));
-                    if (actualWindowSize > 0)
-                    {
-                        double avgInput = sumInput / actualWindowSize;
-                        double avgOutput = sumOutput / actualWindowSize;
-                        double avgInputSquared = sumInputSquared / actualWindowSize;
-                        double avgOutputSquared = sumOutputSquared / actualWindowSize;
-                        double avgCross = sumCross / actualWindowSize;
-                        
-                        // 计算传递函数
-                        double inputVariance = avgInputSquared - avgInput * avgInput;
-                        double outputVariance = avgOutputSquared - avgOutput * avgOutput;
-                        double crossCovariance = avgCross - avgInput * avgOutput;
-                        
-                        if (inputVariance > 0)
-                        {
-                            // 计算幅值
-                            double magnitude = Math.Sqrt(outputVariance / inputVariance);
-                            if (magnitude > 0)
-                            {
-                                magnitude = 20 * Math.Log10(magnitude); // 转换为dB
-                            }
-                            else
-                            {
-                                magnitude = -60; // 最小值
-                            }
-                            
-                            // 计算相位
-                            double phase = Math.Atan2(crossCovariance, inputVariance) * 180 / Math.PI;
-                            
-                            frequencies.Add(currentFreq);
-                            magnitudes.Add(magnitude);
-                            phases.Add(phase);
-                        }
-                    }
-                }
-                
-                if (frequencies.Count == 0)
-                {
-                    MessageBox.Show("无法从数据中提取有效的频率响应信息", "警告", 
-                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                    return;
-                }
-                
-                // 创建数据点列表
-                PointPairList magnitudePoints = new PointPairList();
-                PointPairList phasePoints = new PointPairList();
-                
-                for (int i = 0; i < frequencies.Count; i++)
-                {
-                    magnitudePoints.Add(frequencies[i], magnitudes[i]);
-                    phasePoints.Add(frequencies[i], phases[i]);
-                }
-                
-                // 添加幅频曲线
-                LineItem magnitudeCurve = bodePane.AddCurve("幅频特性", magnitudePoints, Color.Blue, SymbolType.Circle);
-                magnitudeCurve.Line.Width = 2;
-                magnitudeCurve.Symbol.Size = 4;
-                
-                // 添加相频曲线（使用Y2轴）
-                LineItem phaseCurve = bodePane.AddCurve("相频特性", phasePoints, Color.Red, SymbolType.Square);
-                phaseCurve.Line.Width = 2;
-                phaseCurve.Symbol.Size = 4;
-                phaseCurve.IsY2Axis = true; // 使用Y2轴
-                
-                // 设置X轴为对数刻度
-                bodePane.XAxis.Type = AxisType.Log;
-                bodePane.XAxis.Scale.Min = startFreq;
-                bodePane.XAxis.Scale.Max = endFreq;
-                
-                // 设置Y轴范围
-                double minMag = magnitudes.Min();
-                double maxMag = magnitudes.Max();
-                bodePane.YAxis.Scale.Min = Math.Floor(minMag / 10) * 10;
-                bodePane.YAxis.Scale.Max = Math.Ceiling(maxMag / 10) * 10;
-                
-                // 添加网格
-                bodePane.XAxis.MajorGrid.IsVisible = true;
-                bodePane.YAxis.MajorGrid.IsVisible = true;
-                bodePane.Y2Axis.MajorGrid.IsVisible = true;
-                
-                // 设置图例
-                bodePane.Legend.IsVisible = true;
-                bodePane.Legend.Position = LegendPos.Top;
-                
-                // 刷新图表
-                zedGraphControlBode.AxisChange();
-                zedGraphControlBode.Invalidate();
-                zedGraphControlBode.Refresh();
-                
                 Console.WriteLine("伯德图生成完成");
             }
             catch (Exception ex)
