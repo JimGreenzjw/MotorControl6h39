@@ -99,6 +99,62 @@ namespace MotorControl6h39
             Console.WriteLine("位置数据已清空");
         }
 
+        // 添加清空图表曲线数据的方法
+        private void ClearChartData()
+        {
+            try
+            {
+                // 确保在UI线程中执行
+                if (this.InvokeRequired)
+                {
+                    this.Invoke(new Action(ClearChartData));
+                    return;
+                }
+
+                // 清空所有曲线数据点
+                if (listPointsGoal != null)
+                {
+                    listPointsGoal.Clear();
+                }
+                if (listPointsMotor != null)
+                {
+                    listPointsMotor.Clear();
+                }
+                if (listPointsPid != null)
+                {
+                    listPointsPid.Clear();
+                }
+                if (listPointsError != null)
+                {
+                    listPointsError.Clear();
+                }
+
+                // 重置时间戳
+                tickStart = Environment.TickCount;
+
+                // 刷新图表显示
+                if (zedGraphControl1 != null && myPane != null)
+                {
+                    // 重置坐标轴范围
+                    myPane.XAxis.Scale.Min = 0;
+                    myPane.XAxis.Scale.Max = 10;
+                    myPane.YAxis.Scale.Min = -100;
+                    myPane.YAxis.Scale.Max = 100;
+
+                    // 刷新图表
+                    zedGraphControl1.AxisChange();
+                    zedGraphControl1.Invalidate();
+                    zedGraphControl1.Refresh();
+                }
+
+                Console.WriteLine("图表曲线数据已清空");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"清空图表数据时出错: {ex.Message}");
+            }
+        }
+
         // 获取当前数据数量的方法
         private int GetPositionDataCount()
         {
@@ -331,6 +387,34 @@ namespace MotorControl6h39
                                     richTextBox1.AppendText($"数据接收中... 有效包数: {validPacketsProcessed}\n");
                                     richTextBox1.ScrollToCaret();
                                 }
+                            }
+
+                            // 实时显示电机位置到 textBox9
+                            if (textBox9 != null && !textBox9.IsDisposed)
+                            {
+                                textBox9.Text = motorPos.ToString("F3");
+                                textBox9.ReadOnly = true; // 可选：防止用户编辑
+                            }
+
+                            // 实时显示目标位置到 textBox11
+                            if (textBox11 != null && !textBox11.IsDisposed)
+                            {
+                                textBox11.Text = goalPos.ToString("F3");
+                                textBox11.ReadOnly = true; // 可选：防止用户编辑
+                            }
+
+                            // 实时显示位置误差到 textBox10
+                            if (textBox10 != null && !textBox10.IsDisposed)
+                            {
+                                textBox10.Text = positionError.ToString("F3");
+                                textBox10.ReadOnly = true; // 可选：防止用户编辑
+                            }
+
+                            // 实时显示PID输出到 textBox8
+                            if (textBox8 != null && !textBox8.IsDisposed)
+                            {
+                                textBox8.Text = pidOutput.ToString("F3");
+                                textBox8.ReadOnly = true; // 可选：防止用户编辑
                             }
 
                             // 更新图表（每个数据包都更新）
@@ -1369,6 +1453,7 @@ namespace MotorControl6h39
 
                         // 保存成功后清空数组
                         ClearPositionData();
+                        ClearChartData(); // 清空图表数据
                         isRecordingData = false; // 停止记录
                         StopButtonAnimation(); // 停止按钮动画
 
@@ -1407,12 +1492,14 @@ namespace MotorControl6h39
                     // 开始记录数据
                     isRecordingData = true;
                     tickStart = Environment.TickCount;  // 重置时间戳
+                    ClearChartData(); // 清空图表数据
                     StartButtonAnimation(); // 开始按钮动画
                     return;
                 }
 
                 // 直接清空数据并重新开始记录
                 ClearPositionData();
+                ClearChartData(); // 清空图表数据
                 tickStart = Environment.TickCount;  // 重置时间戳
                 isRecordingData = true;  // 重新开始记录
                 StartButtonAnimation(); // 开始按钮动画
@@ -1601,6 +1688,10 @@ namespace MotorControl6h39
                 {
                     // 清空之前的数据并开始记录
                     ClearPositionData();
+                    
+                    // 清空图表曲线数据
+                    ClearChartData();
+                    
                     tickStart = Environment.TickCount;  // 重置时间戳
                     isRecordingData = true;  // 开始记录数据
 
@@ -2096,6 +2187,7 @@ namespace MotorControl6h39
 
                 // 清空数据
                 ClearPositionData();
+                ClearChartData(); // 清空图表数据
 
                 Console.WriteLine($"扫频数据已自动保存到: {fullPath}");
             }
